@@ -107,13 +107,18 @@ export function App() {
             <span>— Explainable AI-Powered Skin Lesion Screening Platform</span>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Research & Ideathon MVP</span>
-            <span>•</span>
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-slate-400 text-center sm:text-right">
+            <span>Decision-Support Prototype</span>
+            <span className="hidden sm:inline">•</span>
             <span>Grad-CAM Interpretability Engine</span>
-            <span>•</span>
-            <span>Not for Autonomous Diagnostic Use</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="text-slate-500 font-medium">Not a Diagnostic System</span>
           </div>
+        </div>
+
+        {/* Global Clinical Disclaimer */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 text-center">
+          "SkinLens is an AI-assisted screening prototype and does not replace professional medical assessment or provide a definitive diagnosis."
         </div>
       </footer>
     </div>

@@ -108,10 +108,11 @@ class ClinicianReview(BaseModel):
     reviewer_name: str
     reviewer_role: str = "Dermatologist / Primary Care Clinician"
     review_notes: str
-    triage_verdict: str  # "Agreed with AI", "Adjusted Risk", "Biopsy Recommended", "Discharged (Benign)"
+    triage_verdict: str
     final_risk_level: str  # "High", "Moderate", "Low"
     action_taken: str
     reviewed_at: str
+    action_type: Optional[str] = "reviewed"
 
 class ClinicianReviewSubmission(BaseModel):
     reviewer_name: str
@@ -120,6 +121,7 @@ class ClinicianReviewSubmission(BaseModel):
     triage_verdict: str
     final_risk_level: str
     action_taken: str
+    action_type: Optional[str] = "reviewed"
 
 class ScreeningCase(BaseModel):
     case_id: str
@@ -138,14 +140,17 @@ class ScreeningCase(BaseModel):
     confidence: float
     malignancy_risk: str  # "High", "Moderate", "Low"
     triage_priority: str  # "Urgent", "Moderate", "Routine"
+    screening_priority: Optional[str] = "Review Recommended"
     triage_reason: str
     differential_diagnoses: List[DiagnosisItem]
     abcde: ABCDEAssessment
     gradcam: GradCAMExplanation
     
-    # Workflow
-    status: str = "Awaiting Review"  # "Awaiting Review", "Under Review", "Reviewed", "Flagged for Biopsy"
+    # Decision-Support Workflow
+    status: str = "Awaiting Review"  # "Awaiting Review", "Reviewed", "Awaiting Specialist Review", "Better Image Requested"
     clinician_review: Optional[ClinicianReview] = None
+    referral: Optional[Dict[str, Any]] = None
+    image_url: Optional[str] = None
     created_at: str
     updated_at: str
 

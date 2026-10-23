@@ -27,6 +27,71 @@ class CaseService:
 
         mock_data = [
             {
+                "case_id": "CASE-2026-8904",
+                "patient_id": "PT-7192",
+                "patient_name": "David Ross",
+                "patient_age": 48,
+                "lesion_location": "Left Shoulder (Posterior)",
+                "duration": "2-3 months",
+                "clinical_notes": "Asymmetric pigmented macule with irregular borders; patient noticed slight enlargement and color darkening.",
+                "symptoms": ["Recent growth", "Color asymmetry", "Irregular border"],
+                "quality": ImageQualityResult(
+                    is_acceptable=True,
+                    quality_rating="Optimal",
+                    sharpness_score=93.5,
+                    lighting_score=89.2,
+                    contrast_score=86.4,
+                    resolution=ImageResolution(width=1024, height=1024),
+                    issues=[],
+                    recommendations=["Image quality optimal for screening review."]
+                ),
+                "primary_diagnosis": "Melanoma",
+                "condition_code": "MEL",
+                "confidence": 0.872,
+                "malignancy_risk": "High",
+                "triage_priority": "Urgent",
+                "screening_priority": "Review Recommended",
+                "triage_reason": "This is an AI-assisted screening signal intended to support professional review.",
+                "differential_diagnoses": [
+                    DiagnosisItem(
+                        condition_code="MEL",
+                        name="Melanoma",
+                        confidence=0.872,
+                        risk_level="High",
+                        description="Melanocytic lesion with atypical architectural features.",
+                        clinical_action="Professional clinician review and evaluation recommended."
+                    ),
+                    DiagnosisItem(
+                        condition_code="NV",
+                        name="Dysplastic Nevus",
+                        confidence=0.088,
+                        risk_level="Moderate",
+                        description="Atypical melanocytic nevus.",
+                        clinical_action="Dermoscopic follow-up."
+                    ),
+                ],
+                "abcde": ABCDEAssessment(
+                    asymmetry={"score": 0.87, "label": "Elevated Asymmetry", "detail": "Significant geometric imbalance across vertical axis."},
+                    border={"score": 0.84, "label": "Notched / Scalloped", "detail": "Abrupt pigment cutoff with peripheral scalloping."},
+                    color={"score": 0.89, "label": "Variegated Pigment", "detail": "Variegated pigmentation containing black and dark brown regions."},
+                    diameter={"score": 0.72, "label": "> 6.0 mm", "detail": "Estimated lesion dimension exceeds safe clinical margin."},
+                    evolution={"score": 0.86, "label": "Recent Change", "detail": "Documented progression in size and appearance over 90 days."},
+                    total_suspicion_score=0.87
+                ),
+                "gradcam": GradCAMExplanation(
+                    heatmap_data_url="",
+                    blended_data_url="",
+                    original_data_url="",
+                    explanation_summary="Deep Grad-CAM attention focus detected over asymmetric peripheral margin and atypical pigment network.",
+                    salient_regions=["Peripheral border scalloping", "Central atypical pigment concentration"],
+                    focal_intensity=0.87
+                ),
+                "status": "Awaiting Review",
+                "clinician_review": None,
+                "created_at": "2026-10-23T10:15:00Z",
+                "updated_at": "2026-10-23T10:15:00Z",
+            },
+            {
                 "case_id": "CASE-2026-8901",
                 "patient_id": "PT-4421",
                 "patient_name": "Eleanor Vance",
@@ -397,6 +462,7 @@ class CaseService:
             return None
 
         now_iso = datetime.now(timezone.utc).isoformat()
+        action_type = review_data.action_type or "reviewed"
         
         review = ClinicianReview(
             reviewer_name=review_data.reviewer_name,
@@ -405,11 +471,26 @@ class CaseService:
             triage_verdict=review_data.triage_verdict,
             final_risk_level=review_data.final_risk_level,
             action_taken=review_data.action_taken,
-            reviewed_at=now_iso
+            reviewed_at=now_iso,
+            action_type=action_type,
         )
 
         case.clinician_review = review
-        case.status = "Reviewed"
+        if action_type == "referred":
+            case.status = "Awaiting Specialist Review"
+            case.referral = {
+                "referral_id": f"REF-{case_id.replace('CASE-', '')}",
+                "case_id": case_id,
+                "priority": getattr(case, "screening_priority", "Review Recommended"),
+                "status": "Awaiting Specialist Review",
+                "referred_at": now_iso,
+                "clinician_notes": review_data.review_notes,
+            }
+        elif action_type == "retake_requested":
+            case.status = "Better Image Requested"
+        else:
+            case.status = "Reviewed"
+
         case.malignancy_risk = review_data.final_risk_level
         case.updated_at = now_iso
         

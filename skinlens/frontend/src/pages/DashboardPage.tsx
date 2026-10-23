@@ -85,15 +85,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         return <Badge variant="info">Under Review</Badge>;
       case 'reviewed':
         return <Badge variant="success">Reviewed</Badge>;
-      case 'flagged for biopsy':
-        return <Badge variant="urgent">Biopsy Ordered</Badge>;
+      case 'awaiting specialist review':
+        return <Badge variant="urgent">Awaiting Specialist Review</Badge>;
+      case 'better image requested':
+        return <Badge variant="warning">Retake Requested</Badge>;
       default:
         return <Badge variant="neutral">{status}</Badge>;
     }
   };
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-6 pb-12">
+      {/* Mandatory Clinical Decision Support Disclaimer */}
+      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center justify-between gap-3 shadow-xs">
+        <span className="font-semibold text-slate-800">
+          "SkinLens is an AI-assisted screening prototype and does not replace professional medical assessment or provide a definitive diagnosis."
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 shrink-0">
+          Decision Support
+        </span>
+      </div>
+
       {/* Hero Welcome Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white p-7 sm:p-8 shadow-xl border border-teal-900/40">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -103,11 +115,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               Clinical Explainable AI Screening • MVP Ideathon Edition
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-              SkinLens Diagnostic Triage
+              SkinLens Decision-Support Screening
             </h1>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Assisting clinical decision-making with instant optical quality validation,
-              dermatological lesion classification, calibrated risk triage, and layer-4 Grad-CAM explainability maps.
+              Assisting clinical decision-making with optical quality validation,
+              dermatological lesion classification, prototype screening priority, and layer-4 Grad-CAM explainability maps.
             </p>
           </div>
 
@@ -196,18 +208,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
 
-        {/* High Risk Detected */}
+        {/* Prompt Evaluation Signals */}
         <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-xs hover:border-slate-300 transition-all flex items-start justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              High Risk Detected
+              Prompt Evaluation Signals
             </p>
             <h3 className="text-2xl sm:text-3xl font-extrabold text-rose-600 mt-2">
               {loading ? '—' : stats.high_risk_detected}
             </h3>
             <p className="text-xs text-rose-600 font-medium mt-1.5 flex items-center gap-1">
               <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Melanoma & SCC priority</span>
+              <span>Priority triage queue</span>
             </p>
           </div>
           <div className="p-3 rounded-xl bg-rose-50 text-rose-700 border border-rose-100">
@@ -216,29 +228,41 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* Core Flow Stepper Card */}
+      {/* 7-Step Case Timeline Overview */}
       <div className="bg-slate-900 text-white rounded-xl p-5 border border-slate-800">
-        <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider mb-3">
-          Core MVP Screening Pipeline
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider">
+              7-Step Decision-Support Screening Pipeline
+            </h4>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Protocolized workflow from initial acquisition to specialist referral
+            </p>
+          </div>
+          <span className="text-[11px] font-mono text-slate-400">
+            Non-Diagnostic Decision Support
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mt-4 text-xs">
           {[
-            { step: '1', title: 'Upload Image', desc: 'Dermoscopy or clinical photo' },
-            { step: '2', title: 'Quality Check', desc: 'Blur, lighting & contrast' },
-            { step: '3', title: 'AI Classification', desc: 'Differential diagnosis' },
-            { step: '4', title: 'Confidence Meter', desc: 'Calibrated certainty %' },
-            { step: '5', title: 'Grad-CAM XAI', desc: 'Visual saliency heatmap' },
-            { step: '6', title: 'Clinician Review', desc: 'Diagnosis & referral triage' },
+            { step: '01', title: 'Image Uploaded', desc: 'Dermoscopic capture' },
+            { step: '02', title: 'Image Validated', desc: 'Optical quality check' },
+            { step: '03', title: 'AI Analysis', desc: 'Neural classification' },
+            { step: '04', title: 'Grad-CAM', desc: 'Visual attention map' },
+            { step: '05', title: 'Screening Priority', desc: 'Prototype triage logic' },
+            { step: '06', title: 'Clinician Review', desc: 'Human evaluation & notes' },
+            { step: '07', title: 'Referral', desc: 'Specialist queue routing' },
           ].map((item, i) => (
             <div
-              key={i}
+              key={item.step}
               className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col justify-between"
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-300 font-bold text-[10px] flex items-center justify-center border border-teal-500/30">
                   {item.step}
                 </span>
-                {i < 5 && <ArrowRight className="w-3 h-3 text-slate-600 hidden md:block" />}
+                {i < 6 && <ArrowRight className="w-3 h-3 text-slate-600 hidden lg:block" />}
               </div>
               <div>
                 <p className="font-semibold text-slate-200">{item.title}</p>
@@ -275,73 +299,92 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <tr>
                   <th className="px-5 py-3.5">Case ID / Patient</th>
                   <th className="px-4 py-3.5">Lesion Location</th>
-                  <th className="px-4 py-3.5">AI Primary Diagnosis</th>
+                  <th className="px-4 py-3.5">AI Prediction</th>
                   <th className="px-4 py-3.5">Confidence</th>
-                  <th className="px-4 py-3.5">Risk Level</th>
+                  <th className="px-4 py-3.5">Screening Priority</th>
                   <th className="px-4 py-3.5">Status</th>
                   <th className="px-5 py-3.5 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recentCases.map((c) => (
-                  <tr
-                    key={c.case_id}
-                    onClick={() => onViewCase(c.case_id)}
-                    className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                  >
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-slate-900">{c.patient_name}</div>
-                      <div className="text-xs text-slate-400 font-mono">
-                        {c.case_id} • Age {c.patient_age}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-xs font-medium text-slate-700">
-                      {c.lesion_location}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="font-medium text-slate-900 block text-xs sm:text-sm">
-                        {c.primary_diagnosis}
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {c.triage_priority} Triage
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-slate-800">
-                          {(c.confidence * 100).toFixed(1)}%
-                        </span>
-                        <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              c.confidence >= 0.9
-                                ? 'bg-teal-500'
-                                : c.confidence >= 0.8
-                                ? 'bg-sky-500'
-                                : 'bg-amber-500'
-                            }`}
-                            style={{ width: `${c.confidence * 100}%` }}
-                          />
+                {recentCases.map((c) => {
+                  const priority =
+                    c.screening_priority ||
+                    (c.malignancy_risk === 'High'
+                      ? 'Review Recommended'
+                      : 'Routine Follow-up');
+                  return (
+                    <tr
+                      key={c.case_id}
+                      onClick={() => onViewCase(c.case_id)}
+                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="font-semibold text-slate-900">{c.patient_name}</div>
+                        <div className="text-xs text-slate-400 font-mono">
+                          {c.case_id} • Age {c.patient_age}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">{getRiskBadge(c.malignancy_risk)}</td>
-                    <td className="px-4 py-4">{getStatusBadge(c.status)}</td>
-                    <td className="px-5 py-4 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onViewCase(c.case_id);
-                        }}
-                      >
-                        Inspect Case
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-4 text-xs font-medium text-slate-700">
+                        {c.lesion_location}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="font-bold text-slate-900 block text-xs sm:text-sm">
+                          {c.primary_diagnosis}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          {c.condition_code}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-800">
+                            {(c.confidence * 100).toFixed(1)}%
+                          </span>
+                          <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${
+                                c.confidence >= 0.9
+                                  ? 'bg-teal-500'
+                                  : c.confidence >= 0.8
+                                  ? 'bg-sky-500'
+                                  : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${c.confidence * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
+                            priority === 'Prompt Professional Evaluation'
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : priority === 'Review Recommended'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}
+                        >
+                          {priority}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">{getStatusBadge(c.status)}</td>
+                      <td className="px-5 py-4 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewCase(c.case_id);
+                          }}
+                        >
+                          Inspect Case
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

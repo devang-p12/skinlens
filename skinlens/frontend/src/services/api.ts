@@ -4,7 +4,64 @@ import {
   ClinicianReview,
   ScreeningApiResponse,
   ScreeningWorkflowData,
+  ScreeningPriority,
+  SpecialistReferral,
 } from '../types';
+
+export function getPrototypeScreeningPriority(
+  prediction: string,
+  confidence: number
+): ScreeningPriority {
+  const normPred = (prediction || '').toLowerCase();
+
+  // High acuity: Melanoma / MEL
+  if (normPred.includes('melanoma') || normPred === 'mel') {
+    if (confidence >= 0.90) {
+      return 'Prompt Professional Evaluation';
+    }
+    // E.g. Melanoma with 87.2% confidence -> Review Recommended
+    return 'Review Recommended';
+  }
+
+  // Cutaneous carcinomas: Basal Cell or Squamous Cell
+  if (
+    normPred.includes('basal') ||
+    normPred === 'bcc' ||
+    normPred.includes('squamous') ||
+    normPred.includes('carcinoma')
+  ) {
+    if (confidence >= 0.88) {
+      return 'Prompt Professional Evaluation';
+    }
+    return 'Review Recommended';
+  }
+
+  // Pre-malignant dysplasia / actinic lesions
+  if (
+    normPred.includes('actinic') ||
+    normPred === 'akiec' ||
+    normPred.includes('bowen')
+  ) {
+    return 'Review Recommended';
+  }
+
+  // Benign types: Nevus, BKL, DF, VASC
+  if (
+    normPred.includes('nevus') ||
+    normPred === 'nv' ||
+    normPred.includes('keratosis') ||
+    normPred === 'bkl' ||
+    normPred === 'df' ||
+    normPred === 'vasc'
+  ) {
+    if (confidence >= 0.80) {
+      return 'Routine Follow-up';
+    }
+    return 'Review Recommended';
+  }
+
+  return 'Review Recommended';
+}
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8005';
 
@@ -247,17 +304,96 @@ export function buildCaseFromScreening(workflow: ScreeningWorkflowData): Screeni
       ],
       focal_intensity: apiResponse.prediction.confidence,
     },
+    screening_priority: getPrototypeScreeningPriority(meta.name, apiResponse.prediction.confidence),
+    image_url: originalImagePreview || fullOverlayUrl,
     status: 'Awaiting Review',
     clinician_review: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 
+  // Register in local registry so subsequent views retain this case
+  SkinLensApi.addCase(newCase);
+
   return newCase;
 }
 
 // Built-in initial mock cases for frontend independence / fallback
 const FALLBACK_CASES: ScreeningCase[] = [
+  {
+    case_id: 'CASE-2026-8904',
+    patient_id: 'PT-7192',
+    patient_name: 'David Ross',
+    patient_age: 48,
+    lesion_location: 'Left Shoulder (Posterior)',
+    duration: '2-3 months',
+    clinical_notes: 'Asymmetric pigmented macule with irregular borders; patient noticed slight enlargement and color darkening.',
+    symptoms: ['Recent growth', 'Color asymmetry', 'Irregular border'],
+    quality: {
+      is_acceptable: true,
+      quality_rating: 'Optimal',
+      sharpness_score: 93.5,
+      lighting_score: 89.2,
+      contrast_score: 86.4,
+      resolution: { width: 1024, height: 1024 },
+      issues: [],
+      recommendations: ['Image quality optimal for automated AI triage.'],
+    },
+    primary_diagnosis: 'Melanoma',
+    condition_code: 'MEL',
+    confidence: 0.872,
+    malignancy_risk: 'High',
+    triage_priority: 'Urgent',
+    screening_priority: 'Review Recommended',
+    image_url: '/samples/melanoma_sample.jpg',
+    triage_reason: 'This is an AI-assisted screening signal intended to support professional review.',
+    differential_diagnoses: [
+      {
+        condition_code: 'MEL',
+        name: 'Melanoma',
+        confidence: 0.872,
+        risk_level: 'High',
+        description: 'Melanocytic lesion with atypical architectural features.',
+        clinical_action: 'Professional clinician review and evaluation recommended.',
+      },
+      {
+        condition_code: 'NV',
+        name: 'Dysplastic Nevus',
+        confidence: 0.088,
+        risk_level: 'Moderate',
+        description: 'Atypical melanocytic nevus.',
+        clinical_action: 'Dermoscopic follow-up.',
+      },
+      {
+        condition_code: 'BKL',
+        name: 'Benign Keratosis',
+        confidence: 0.040,
+        risk_level: 'Low',
+        description: 'Benign epidermal lesion.',
+        clinical_action: 'Routine observation.',
+      },
+    ],
+    abcde: {
+      asymmetry: { score: 0.87, label: 'Elevated Asymmetry', detail: 'Significant geometric imbalance across vertical axis.' },
+      border: { score: 0.84, label: 'Notched / Scalloped', detail: 'Abrupt pigment cutoff with peripheral scalloping.' },
+      color: { score: 0.89, label: 'Variegated Pigment', detail: 'Variegated pigmentation containing black and dark brown regions.' },
+      diameter: { score: 0.72, label: '> 6.0 mm', detail: 'Estimated lesion dimension exceeds safe clinical margin.' },
+      evolution: { score: 0.86, label: 'Recent Change', detail: 'Documented progression in size and appearance over 90 days.' },
+      total_suspicion_score: 0.87,
+    },
+    gradcam: {
+      heatmap_data_url: '/samples/melanoma_sample.jpg',
+      blended_data_url: '/samples/melanoma_sample.jpg',
+      original_data_url: '/samples/melanoma_sample.jpg',
+      explanation_summary: 'Deep Grad-CAM attention focus detected over asymmetric peripheral margin and atypical pigment network.',
+      salient_regions: ['Peripheral border scalloping', 'Central atypical pigment concentration'],
+      focal_intensity: 0.87,
+    },
+    status: 'Awaiting Review',
+    clinician_review: null,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 3600000).toISOString(),
+  },
   {
     case_id: 'CASE-2026-8901',
     patient_id: 'PT-4421',
@@ -282,23 +418,25 @@ const FALLBACK_CASES: ScreeningCase[] = [
     confidence: 0.942,
     malignancy_risk: 'High',
     triage_priority: 'Urgent',
-    triage_reason: 'Deep pigment asymmetry and border notch activation. Rapid excision triage indicated.',
+    screening_priority: 'Prompt Professional Evaluation',
+    image_url: '/samples/melanoma_sample.jpg',
+    triage_reason: 'Deep pigment asymmetry and border notch activation. Rapid review triage indicated.',
     differential_diagnoses: [
       {
         condition_code: 'MEL',
         name: 'Malignant Melanoma',
         confidence: 0.942,
         risk_level: 'High',
-        description: 'Aggressive melanocytic malignancy requiring immediate full-thickness wide excision.',
-        clinical_action: 'Urgent specialist referral within 48 hours for diagnostic biopsy.',
+        description: 'Atypical melanocytic lesion requiring specialist clinical evaluation.',
+        clinical_action: 'Specialist referral recommended for diagnostic biopsy.',
       },
       {
         condition_code: 'BCC',
         name: 'Basal Cell Carcinoma',
         confidence: 0.038,
         risk_level: 'Moderate',
-        description: 'Pigmented variant of basal cell carcinoma.',
-        clinical_action: 'Surgical excision.',
+        description: 'Pigmented non-melanoma variant.',
+        clinical_action: 'Surgical excision evaluation.',
       },
       {
         condition_code: 'AKIEC',
@@ -358,6 +496,8 @@ const FALLBACK_CASES: ScreeningCase[] = [
     confidence: 0.887,
     malignancy_risk: 'Moderate',
     triage_priority: 'Moderate',
+    screening_priority: 'Review Recommended',
+    image_url: '/samples/bcc_sample.jpg',
     triage_reason: 'Classic arborizing telangiectasia and rolled pearly border on right malar cheek.',
     differential_diagnoses: [
       {
@@ -365,16 +505,16 @@ const FALLBACK_CASES: ScreeningCase[] = [
         name: 'Basal Cell Carcinoma',
         confidence: 0.887,
         risk_level: 'Moderate',
-        description: 'Nodular basal cell carcinoma on facial cosmetically sensitive zone.',
+        description: 'Nodular basal cell lesion on facial zone.',
         clinical_action: 'Mohs micrographic surgery evaluation indicated.',
       },
       {
         condition_code: 'SCC',
         name: 'Squamous Cell Carcinoma',
         confidence: 0.075,
-        risk_level: 'High',
-        description: 'Invasive keratinocyte carcinoma.',
-        clinical_action: 'Diagnostic punch biopsy.',
+        risk_level: 'Moderate',
+        description: 'Keratinocyte lesion.',
+        clinical_action: 'Punch evaluation.',
       },
     ],
     abcde: {
@@ -426,6 +566,8 @@ const FALLBACK_CASES: ScreeningCase[] = [
     confidence: 0.958,
     malignancy_risk: 'Low',
     triage_priority: 'Routine',
+    screening_priority: 'Routine Follow-up',
+    image_url: '/samples/nevus_sample.jpg',
     triage_reason: 'Homogenous benign reticular network with symmetric round contours and stable history.',
     differential_diagnoses: [
       {
@@ -434,7 +576,7 @@ const FALLBACK_CASES: ScreeningCase[] = [
         confidence: 0.958,
         risk_level: 'Low',
         description: 'Uniform melanocytic junctional nevus with benign dermoscopic architecture.',
-        clinical_action: 'Routine reassurance. Annual skin self-check.',
+        clinical_action: 'Routine follow-up. Periodic self-monitoring.',
       },
     ],
     abcde: {
@@ -457,10 +599,10 @@ const FALLBACK_CASES: ScreeningCase[] = [
     clinician_review: {
       reviewer_name: 'Dr. Julian Vance, MD, FAAD',
       reviewer_role: 'Board Certified Dermatologist',
-      review_notes: 'Concur completely with AI assessment. Classical benign compound melanocytic nevus. Patient reassured.',
-      triage_verdict: 'Discharged (Benign)',
+      review_notes: 'Concur completely with AI screening output. Classical benign compound melanocytic nevus. Routine surveillance advised.',
+      triage_verdict: 'Routine Surveillance (Benign)',
       final_risk_level: 'Low',
-      action_taken: 'Patient reassured, self-monitoring guidance provided.',
+      action_taken: 'Routine follow-up advised; patient reassured.',
       reviewed_at: '2026-10-19T09:10:00Z',
     },
     created_at: '2026-10-19T06:50:00Z',
@@ -468,7 +610,36 @@ const FALLBACK_CASES: ScreeningCase[] = [
   },
 ];
 
-let localCases = [...FALLBACK_CASES];
+const REGISTRY_STORAGE_KEY = 'skinlens_cases_registry_v2';
+
+function loadRegistry(): ScreeningCase[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(REGISTRY_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse stored cases:', e);
+    }
+  }
+  return [...FALLBACK_CASES];
+}
+
+function saveRegistry(cases: ScreeningCase[]) {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(cases));
+    } catch (e) {
+      console.warn('Failed to save cases registry:', e);
+    }
+  }
+}
+
+let localCases: ScreeningCase[] = loadRegistry();
 
 export const SkinLensApi = {
   async checkBackendConnection(): Promise<boolean> {
@@ -478,6 +649,16 @@ export const SkinLensApi = {
     } catch {
       return false;
     }
+  },
+
+  addCase(newCase: ScreeningCase): void {
+    const existingIndex = localCases.findIndex((c) => c.case_id === newCase.case_id);
+    if (existingIndex >= 0) {
+      localCases[existingIndex] = newCase;
+    } else {
+      localCases.unshift(newCase);
+    }
+    saveRegistry(localCases);
   },
 
   async getStats(): Promise<DashboardStats> {
@@ -490,13 +671,13 @@ export const SkinLensApi = {
       // Fallback calculation from local state
     }
     const awaiting = localCases.filter((c) => c.status === 'Awaiting Review' || c.status === 'Under Review').length;
-    const reviewRec = localCases.filter((c) => c.triage_priority === 'Urgent' || c.triage_priority === 'Moderate').length;
-    const highRisk = localCases.filter((c) => c.malignancy_risk === 'High').length;
+    const reviewRec = localCases.filter((c) => (c.screening_priority || c.triage_priority) === 'Review Recommended' || c.triage_priority === 'Moderate').length;
+    const promptEval = localCases.filter((c) => (c.screening_priority || c.triage_priority) === 'Prompt Professional Evaluation' || c.malignancy_risk === 'High').length;
     return {
       screenings_today: localCases.length + 3,
       cases_awaiting_review: awaiting,
       review_recommended: reviewRec,
-      high_risk_detected: highRisk,
+      high_risk_detected: promptEval,
       total_screenings: localCases.length,
     };
   },
@@ -555,6 +736,7 @@ export const SkinLensApi = {
     triage_verdict: string;
     final_risk_level: string;
     action_taken: string;
+    action_type?: 'reviewed' | 'retake_requested' | 'referred';
   }): Promise<ScreeningCase> {
     try {
       const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/review`, {
@@ -563,7 +745,9 @@ export const SkinLensApi = {
         body: JSON.stringify(review),
       });
       if (res.ok) {
-        return await res.json();
+        const updated = await res.json();
+        SkinLensApi.addCase(updated);
+        return updated;
       }
     } catch {
       // Fallback
@@ -583,10 +767,85 @@ export const SkinLensApi = {
           final_risk_level: review.final_risk_level,
           action_taken: review.action_taken,
           reviewed_at: new Date().toISOString(),
+          action_type: review.action_type || 'reviewed',
         },
         updated_at: new Date().toISOString(),
       };
       localCases[index] = updatedCase;
+      saveRegistry(localCases);
+      return updatedCase;
+    }
+    throw new Error('Case not found');
+  },
+
+  async referCase(caseId: string, referral: SpecialistReferral): Promise<ScreeningCase> {
+    const index = localCases.findIndex((c) => c.case_id === caseId);
+    if (index >= 0) {
+      const current = localCases[index];
+      const updatedCase: ScreeningCase = {
+        ...current,
+        status: 'Awaiting Specialist Review',
+        referral: referral,
+        clinician_review: {
+          reviewer_name: current.clinician_review?.reviewer_name || 'Dr. Julian Vance, MD, FAAD',
+          reviewer_role: current.clinician_review?.reviewer_role || 'Attending Dermatologist',
+          review_notes: referral.clinician_notes || current.clinician_review?.review_notes || 'Referred for specialist review.',
+          triage_verdict: 'Referral Created — Awaiting Specialist Review',
+          final_risk_level: current.malignancy_risk,
+          action_taken: `Referred to ${referral.specialist_type || 'Specialist'}`,
+          reviewed_at: new Date().toISOString(),
+          action_type: 'referred',
+        },
+        updated_at: new Date().toISOString(),
+      };
+      localCases[index] = updatedCase;
+      saveRegistry(localCases);
+      return updatedCase;
+    }
+    throw new Error('Case not found');
+  },
+
+  async requestImageRetake(caseId: string, reason: string): Promise<ScreeningCase> {
+    const index = localCases.findIndex((c) => c.case_id === caseId);
+    if (index >= 0) {
+      const current = localCases[index];
+      const updatedCase: ScreeningCase = {
+        ...current,
+        status: 'Better Image Requested',
+        clinician_review: {
+          reviewer_name: current.clinician_review?.reviewer_name || 'Dr. Julian Vance, MD, FAAD',
+          reviewer_role: current.clinician_review?.reviewer_role || 'Attending Dermatologist',
+          review_notes: `Image retake requested: ${reason}`,
+          triage_verdict: 'Better Image Requested',
+          final_risk_level: current.malignancy_risk,
+          action_taken: `Retake Requested: ${reason}`,
+          reviewed_at: new Date().toISOString(),
+          action_type: 'retake_requested',
+        },
+        updated_at: new Date().toISOString(),
+      };
+      localCases[index] = updatedCase;
+      saveRegistry(localCases);
+      return updatedCase;
+    }
+    throw new Error('Case not found');
+  },
+
+  async markAsReviewed(caseId: string, review: ClinicianReview): Promise<ScreeningCase> {
+    const index = localCases.findIndex((c) => c.case_id === caseId);
+    if (index >= 0) {
+      const current = localCases[index];
+      const updatedCase: ScreeningCase = {
+        ...current,
+        status: 'Reviewed',
+        clinician_review: {
+          ...review,
+          action_type: 'reviewed',
+        },
+        updated_at: new Date().toISOString(),
+      };
+      localCases[index] = updatedCase;
+      saveRegistry(localCases);
       return updatedCase;
     }
     throw new Error('Case not found');
@@ -650,8 +909,10 @@ export const SkinLensApi = {
         confidence: isHighRisk ? 0.934 : 0.882,
         malignancy_risk: isHighRisk ? 'High' : 'Moderate',
         triage_priority: isHighRisk ? 'Urgent' : 'Moderate',
+        screening_priority: isHighRisk ? 'Prompt Professional Evaluation' : 'Review Recommended',
+        image_url: previewUrl,
         triage_reason: isHighRisk
-          ? 'Deep pigment asymmetry and border notch activation. Rapid excision triage indicated.'
+          ? 'Deep pigment asymmetry and border notch activation. Rapid review triage indicated.'
           : 'Translucent pearly papular characteristics with prominent arborizing telangiectasia.',
         differential_diagnoses: [
           {
@@ -659,8 +920,8 @@ export const SkinLensApi = {
             name: isHighRisk ? 'Malignant Melanoma' : 'Basal Cell Carcinoma',
             confidence: isHighRisk ? 0.934 : 0.882,
             risk_level: isHighRisk ? 'High' : 'Moderate',
-            description: isHighRisk ? 'Aggressive melanocytic malignancy.' : 'Non-melanoma skin cancer.',
-            clinical_action: isHighRisk ? 'Urgent full-thickness biopsy.' : 'Surgical excision.',
+            description: isHighRisk ? 'Atypical melanocytic lesion requiring specialist clinical evaluation.' : 'Non-melanoma cutaneous lesion.',
+            clinical_action: isHighRisk ? 'Specialist referral recommended for diagnostic biopsy.' : 'Surgical excision evaluation.',
           },
           {
             condition_code: 'NV',
@@ -702,6 +963,7 @@ export const SkinLensApi = {
       };
 
       localCases.unshift(newCase);
+      saveRegistry(localCases);
       setTimeout(() => resolve(newCase), 600);
     });
   },

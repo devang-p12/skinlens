@@ -81,8 +81,10 @@ export const CasesPage: React.FC<CasesPageProps> = ({
         return <Badge variant="info">Under Review</Badge>;
       case 'reviewed':
         return <Badge variant="success">Reviewed</Badge>;
-      case 'flagged for biopsy':
-        return <Badge variant="urgent">Biopsy Ordered</Badge>;
+      case 'awaiting specialist review':
+        return <Badge variant="urgent">Awaiting Specialist Review</Badge>;
+      case 'better image requested':
+        return <Badge variant="warning">Retake Requested</Badge>;
       default:
         return <Badge variant="neutral">{status}</Badge>;
     }
@@ -90,6 +92,16 @@ export const CasesPage: React.FC<CasesPageProps> = ({
 
   return (
     <div className="space-y-6 pb-16">
+      {/* Mandatory Clinical Decision Support Disclaimer */}
+      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center justify-between gap-3 shadow-xs">
+        <span className="font-semibold text-slate-800">
+          "SkinLens is an AI-assisted screening prototype and does not replace professional medical assessment or provide a definitive diagnosis."
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 shrink-0">
+          Decision Support
+        </span>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -137,7 +149,13 @@ export const CasesPage: React.FC<CasesPageProps> = ({
           {/* Status Filters */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-slate-400 font-medium mr-1">Status:</span>
-            {['All', 'Awaiting Review', 'Under Review', 'Reviewed'].map((st) => (
+            {[
+              'All',
+              'Awaiting Review',
+              'Reviewed',
+              'Awaiting Specialist Review',
+              'Better Image Requested',
+            ].map((st) => (
               <button
                 key={st}
                 onClick={() => setSelectedStatus(st)}
@@ -205,64 +223,82 @@ export const CasesPage: React.FC<CasesPageProps> = ({
                   <tr>
                     <th className="px-5 py-3.5">Patient / Case ID</th>
                     <th className="px-4 py-3.5">Location</th>
-                    <th className="px-4 py-3.5">AI Classification</th>
-                    <th className="px-4 py-3.5">Certainty</th>
-                    <th className="px-4 py-3.5">Risk Tier</th>
+                    <th className="px-4 py-3.5">AI Prediction</th>
+                    <th className="px-4 py-3.5">Confidence</th>
+                    <th className="px-4 py-3.5">Screening Priority</th>
                     <th className="px-4 py-3.5">Status</th>
                     <th className="px-4 py-3.5">Reviewer</th>
                     <th className="px-5 py-3.5 text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {cases.map((c) => (
-                    <tr
-                      key={c.case_id}
-                      onClick={() => onSelectCase(c.case_id)}
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                    >
-                      <td className="px-5 py-4">
-                        <div className="font-bold text-slate-900">{c.patient_name}</div>
-                        <div className="text-xs text-slate-400 font-mono mt-0.5">
-                          {c.case_id} • Age {c.patient_age}
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-4 text-xs font-medium text-slate-700">
-                        {c.lesion_location}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span className="font-semibold text-slate-900 block text-xs sm:text-sm">
-                          {c.primary_diagnosis}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          {c.triage_priority} Triage
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-800">
-                            {(c.confidence * 100).toFixed(1)}%
-                          </span>
-                          <div className="w-14 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${
-                                c.confidence >= 0.9
-                                  ? 'bg-teal-500'
-                                  : c.confidence >= 0.8
-                                  ? 'bg-sky-500'
-                                  : 'bg-amber-500'
-                              }`}
-                              style={{ width: `${c.confidence * 100}%` }}
-                            />
+                  {cases.map((c) => {
+                    const priority =
+                      c.screening_priority ||
+                      (c.malignancy_risk === 'High'
+                        ? 'Review Recommended'
+                        : 'Routine Follow-up');
+                    return (
+                      <tr
+                        key={c.case_id}
+                        onClick={() => onSelectCase(c.case_id)}
+                        className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                      >
+                        <td className="px-5 py-4">
+                          <div className="font-bold text-slate-900">{c.patient_name}</div>
+                          <div className="text-xs text-slate-400 font-mono mt-0.5">
+                            {c.case_id} • Age {c.patient_age}
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-4 py-4">{getRiskBadge(c.malignancy_risk)}</td>
+                        <td className="px-4 py-4 text-xs font-medium text-slate-700">
+                          {c.lesion_location}
+                        </td>
 
-                      <td className="px-4 py-4">{getStatusBadge(c.status)}</td>
+                        <td className="px-4 py-4">
+                          <span className="font-semibold text-slate-900 block text-xs sm:text-sm">
+                            {c.primary_diagnosis}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {c.condition_code}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-800">
+                              {(c.confidence * 100).toFixed(1)}%
+                            </span>
+                            <div className="w-14 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  c.confidence >= 0.9
+                                    ? 'bg-teal-500'
+                                    : c.confidence >= 0.8
+                                    ? 'bg-sky-500'
+                                    : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${c.confidence * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
+                              priority === 'Prompt Professional Evaluation'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : priority === 'Review Recommended'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}
+                          >
+                            {priority}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-4">{getStatusBadge(c.status)}</td>
 
                       <td className="px-4 py-4 text-xs text-slate-600">
                         {c.clinician_review ? (
@@ -293,7 +329,8 @@ export const CasesPage: React.FC<CasesPageProps> = ({
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

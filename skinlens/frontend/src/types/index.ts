@@ -47,6 +47,22 @@ export interface GradCAMExplanation {
   focal_intensity: number;
 }
 
+export type ScreeningPriority =
+  | 'Routine Follow-up'
+  | 'Review Recommended'
+  | 'Prompt Professional Evaluation';
+
+export interface SpecialistReferral {
+  referral_id: string;
+  case_id: string;
+  priority: ScreeningPriority;
+  status: 'Awaiting Specialist Review';
+  referred_at: string;
+  clinician_notes?: string;
+  specialist_type?: string;
+  urgency?: 'Immediate' | 'Priority' | 'Routine' | string;
+}
+
 export interface ClinicianReview {
   reviewer_name: string;
   reviewer_role: string;
@@ -55,6 +71,7 @@ export interface ClinicianReview {
   final_risk_level: 'High' | 'Moderate' | 'Low' | string;
   action_taken: string;
   reviewed_at: string;
+  action_type?: 'reviewed' | 'retake_requested' | 'referred';
 }
 
 export interface ScreeningCase {
@@ -73,10 +90,19 @@ export interface ScreeningCase {
   malignancy_risk: 'High' | 'Moderate' | 'Low' | string;
   triage_priority: 'Urgent' | 'Moderate' | 'Routine' | string;
   triage_reason: string;
+  screening_priority?: ScreeningPriority;
+  referral?: SpecialistReferral | null;
+  image_url?: string;
   differential_diagnoses: DiagnosisItem[];
   abcde: ABCDEAssessment;
   gradcam: GradCAMExplanation;
-  status: 'Awaiting Review' | 'Under Review' | 'Reviewed' | 'Flagged for Biopsy' | string;
+  status:
+    | 'Awaiting Review'
+    | 'Under Review'
+    | 'Reviewed'
+    | 'Awaiting Specialist Review'
+    | 'Better Image Requested'
+    | string;
   clinician_review?: ClinicianReview | null;
   created_at: string;
   updated_at: string;
