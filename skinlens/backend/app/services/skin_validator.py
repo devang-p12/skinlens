@@ -217,7 +217,7 @@ class SkinDomainValidator:
                 "The neural model cannot process this upload because it is not a dermatological lesion."
             )
 
-        # 10. Lesion Presence / Saliency Analysis (Distinguish Healthy Normal Skin from Focal Lesion)
+        # 10. Focal Lesion Presence & Saliency Analysis (Distinguish Healthy Normal Skin from Focal Lesion)
         has_lesion = True
         lesion_ratio = 0.0
         contrast_std = 0.0
@@ -226,28 +226,58 @@ class SkinDomainValidator:
             a_ch = lab[:, :, 1].astype(float)
             b_ch = lab[:, :, 2].astype(float)
 
-            med_L = float(np.median(L_ch[non_vignette]))
-            med_a = float(np.median(a_ch[non_vignette]))
-            med_b = float(np.median(b_ch[non_vignette]))
+            # Estimate smooth illumination background via wide Gaussian blur
+            # Captures ambient room light gradients, limb curvature, and broad shadows
+            k_w = int(w * 0.25) | 1
+            k_h = int(h * 0.25) | 1
+            bg_L = cv2.GaussianBlur(L_ch, (k_w, k_h), 0)
+            bg_a = cv2.GaussianBlur(a_ch, (k_w, k_h), 0)
+            bg_b = cv2.GaussianBlur(b_ch, (k_w, k_h), 0)
 
-            delta_E = np.sqrt((L_ch - med_L) ** 2 + (a_ch - med_a) ** 2 + (b_ch - med_b) ** 2)
-            anomaly_mask = (delta_E > 13.5) & non_vignette
+            # High-frequency local contrast deviation from surrounding cutaneous neighborhood
+            lum_dev = np.abs(L_ch - bg_L)
+            chroma_dev = np.sqrt((a_ch - bg_a) ** 2 + (b_ch - bg_b) ** 2)
+            local_dev = np.sqrt(lum_dev ** 2 + chroma_dev ** 2)
 
+            focal_mask = (local_dev > 11.5) & non_vignette
+
+            # Morphological filtering to eliminate hairs, pores, and micro-texture noise
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-            cleaned = cv2.morphologyEx(anomaly_mask.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+            cleaned = cv2.morphologyEx(focal_mask.astype(np.uint8), cv2.MORPH_OPEN, kernel)
             cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel)
 
             num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(cleaned)
-            max_comp_area = 0
-            if num_labels > 1:
-                areas = stats[1:, cv2.CC_STAT_AREA]
-                max_comp_area = int(np.max(areas))
+            max_lesion_ratio = 0.0
+            genuine_lesion_found = False
 
-            lesion_ratio = float((max_comp_area / roi_pixels) * 100.0)
-            contrast_std = float(np.std(L_ch[non_vignette]))
+            for i in range(1, num_labels):
+                area = int(stats[i, cv2.CC_STAT_AREA])
+                comp_ratio = float((area / roi_pixels) * 100.0)
+                cx = int(stats[i, cv2.CC_STAT_LEFT])
+                cy = int(stats[i, cv2.CC_STAT_TOP])
+                cw = int(stats[i, cv2.CC_STAT_WIDTH])
+                ch = int(stats[i, cv2.CC_STAT_HEIGHT])
 
-            # Normal skin has low contrast and no focal anomalous connected component
-            has_lesion = bool((lesion_ratio >= 0.8) or (contrast_std >= 17.0 and lesion_ratio >= 0.4))
+                # Reject border-spanning shadow bands (shadows touching opposing image edges)
+                touches_left = (cx <= 4)
+                touches_right = (cx + cw >= w - 4)
+                touches_top = (cy <= 4)
+                touches_bottom = (cy + ch >= h - 4)
+                is_border_shadow = (
+                    (touches_left and touches_right)
+                    or (touches_top and touches_bottom)
+                    or ((touches_left or touches_right) and (touches_top or touches_bottom) and comp_ratio > 3.0)
+                )
+
+                # Genuine focal lesion: contained in the optical field, not an edge shadow, ratio >= 0.6%
+                if not is_border_shadow and comp_ratio >= 0.6:
+                    genuine_lesion_found = True
+                    if comp_ratio > max_lesion_ratio:
+                        max_lesion_ratio = comp_ratio
+
+            lesion_ratio = max_lesion_ratio
+            contrast_std = float(np.std(local_dev[non_vignette]))
+            has_lesion = bool(genuine_lesion_found and max_lesion_ratio >= 0.6)
 
         return {
             "is_skin": bool(is_skin),

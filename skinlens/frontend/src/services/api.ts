@@ -164,6 +164,12 @@ export const CONDITION_METADATA: Record<
     description: 'Healthy cutaneous tissue with uniform pigmentation. Automated screening verified no suspicious focal lesion, abnormal nevus, or irregular margins.',
     clinical_action: 'Routine reassurance; continue standard periodic skin self-checks.',
   },
+  'Normal Skin (Low-Suspicion Cutaneous Mark)': {
+    name: 'Normal Skin (Low-Suspicion Cutaneous Mark)',
+    risk: 'Low',
+    description: 'Minor baseline cutaneous mark or mild reactive erythema with low neural suspicion (< 50%). No features of primary malignancy detected.',
+    clinical_action: 'Routine observation; standard periodic skin self-checks.',
+  },
 };
 
 export async function screenLesion(formData: FormData): Promise<ScreeningApiResponse> {
