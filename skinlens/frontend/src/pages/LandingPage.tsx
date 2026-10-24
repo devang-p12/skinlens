@@ -41,8 +41,8 @@ const WORKFLOW_STEPS = [
   },
   {
     step: '02',
-    title: 'Image Validation',
-    desc: 'Automated optical quality check — sharpness, contrast, and resolution assessment.',
+    title: 'Image Ingestion',
+    desc: 'Upload dermoscopic imagery with automated skin tissue and focal lesion screening.',
     icon: ShieldCheck,
     color: 'sky',
   },

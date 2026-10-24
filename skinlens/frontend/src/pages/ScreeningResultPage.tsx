@@ -20,7 +20,6 @@ import { ScreeningCase, ScreeningApiResponse, ClinicianReview, SpecialistReferra
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { GradCAMViewer } from '../components/GradCAMViewer';
-import { QualityIndicator } from '../components/QualityIndicator';
 import { ABCDECard } from '../components/ABCDECard';
 import { PrototypeScreeningPriority } from '../components/PrototypeScreeningPriority';
 import { CaseTimeline } from '../components/CaseTimeline';
@@ -494,14 +493,9 @@ export const ScreeningResultPage: React.FC<ScreeningResultPageProps> = ({
           referral={currentCase.referral}
         />
 
-        {/* Patient Demographics & Optical Quality */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-6">
-            <QualityIndicator quality={currentCase.quality} />
-          </div>
-          <div className="lg:col-span-6">
-            <ABCDECard abcde={currentCase.abcde} />
-          </div>
+        {/* ABCDE Dermatological Criteria */}
+        <div>
+          <ABCDECard abcde={currentCase.abcde} />
         </div>
       </div>
 

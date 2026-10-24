@@ -18,7 +18,6 @@ import { ScreeningCase, ClinicianReview, SpecialistReferral } from '../types';
 import { SkinLensApi } from '../services/api';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
-import { QualityIndicator } from '../components/QualityIndicator';
 import { ABCDECard } from '../components/ABCDECard';
 import { PrototypeScreeningPriority } from '../components/PrototypeScreeningPriority';
 import { CaseTimeline } from '../components/CaseTimeline';
@@ -319,9 +318,6 @@ export const CaseDetailsPage: React.FC<CaseDetailsPageProps> = ({
               )}
             </div>
           </div>
-
-          {/* Optical Quality Card */}
-          <QualityIndicator quality={currentCase.quality} />
         </div>
       </div>
 

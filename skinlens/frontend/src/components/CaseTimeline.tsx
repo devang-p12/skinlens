@@ -64,21 +64,23 @@ export const CaseTimeline: React.FC<CaseTimelineProps> = ({
     {
       id: 'step-upload',
       name: 'Image Uploaded',
-      description: `Dermoscopic photo ingested (${screeningCase.quality.resolution.width}×${screeningCase.quality.resolution.height}px)`,
+      description: 'Dermoscopic photograph ingested for evaluation',
       status: 'completed',
       icon: <UploadCloud className="w-4 h-4" />,
       timestamp: formatTime(screeningCase.created_at) || '10:14 AM',
-      badge: 'Verified',
+      badge: 'Completed',
       badgeVariant: 'success',
     },
     {
       id: 'step-validate',
-      name: 'Image Validated',
-      description: `Optical quality: ${screeningCase.quality.quality_rating} (${screeningCase.quality.sharpness_score}% sharpness)`,
+      name: 'Quality Verified',
+      description: screeningCase.quality.is_acceptable
+        ? 'Dermoscopic optical fidelity verified'
+        : 'Quality warning flagged for review',
       status: 'completed',
       icon: <FileCheck className="w-4 h-4" />,
       timestamp: formatTime(screeningCase.created_at) || '10:14 AM',
-      badge: screeningCase.quality.is_acceptable ? 'Optimal' : 'Sub-optimal',
+      badge: screeningCase.quality.is_acceptable ? 'Passed' : 'Warning',
       badgeVariant: screeningCase.quality.is_acceptable ? 'success' : 'warning',
     },
     {

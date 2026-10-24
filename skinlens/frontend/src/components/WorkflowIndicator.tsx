@@ -31,7 +31,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     id: 'validate',
     stepNumber: '02',
     label: 'Validate',
-    description: 'Optical quality & heuristics',
+    description: 'Tissue domain & lesion check',
     icon: <CheckSquare className="w-4 h-4" />,
   },
   {

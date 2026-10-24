@@ -223,41 +223,39 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* 7-Step Case Timeline Overview */}
+      {/* Decision-Support Screening Pipeline Overview */}
       <div className="bg-slate-900 text-white rounded-xl p-5 border border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div>
             <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider">
-              7-Step Decision-Support Screening Pipeline
+              Clinical Decision-Support Pipeline
             </h4>
             <p className="text-xs text-slate-400 mt-0.5">
-              Protocolized workflow from initial acquisition to specialist referral
+              Protocolized screening workflow from image acquisition to specialist triage
             </p>
           </div>
           <span className="text-[11px] font-mono text-slate-400">
-            Non-Diagnostic Decision Support
+            Decision Support
           </span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mt-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 text-xs">
           {[
-            { step: '01', title: 'Image Uploaded', desc: 'Dermoscopic capture' },
-            { step: '02', title: 'Image Validated', desc: 'Optical quality check' },
-            { step: '03', title: 'AI Analysis', desc: 'Neural classification' },
-            { step: '04', title: 'Grad-CAM', desc: 'Visual attention map' },
-            { step: '05', title: 'Screening Priority', desc: 'Prototype triage logic' },
-            { step: '06', title: 'Clinician Review', desc: 'Human evaluation & notes' },
-            { step: '07', title: 'Referral', desc: 'Specialist queue routing' },
+            { step: '01', title: 'Image Capture', desc: 'Dermoscopic upload & verification' },
+            { step: '02', title: 'AI Classification', desc: '7-class neural inference' },
+            { step: '03', title: 'Grad-CAM Saliency', desc: 'Pixel-level explainability map' },
+            { step: '04', title: 'Clinician Review', desc: 'Dermatologist attestation' },
+            { step: '05', title: 'Triage & Referral', desc: 'Specialist routing if indicated' },
           ].map((item, i) => (
             <div
               key={item.step}
               className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col justify-between"
             >
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1.5">
                 <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-300 font-bold text-[10px] flex items-center justify-center border border-teal-500/30">
                   {item.step}
                 </span>
-                {i < 6 && <ArrowRight className="w-3 h-3 text-slate-600 hidden lg:block" />}
+                {i < 4 && <ArrowRight className="w-3 h-3 text-slate-600 hidden lg:block" />}
               </div>
               <div>
                 <p className="font-semibold text-slate-200">{item.title}</p>

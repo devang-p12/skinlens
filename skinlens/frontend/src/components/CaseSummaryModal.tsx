@@ -59,10 +59,6 @@ Lesion Location: ${screeningCase.lesion_location}
 Duration: ${screeningCase.duration}
 Clinical Notes: ${screeningCase.clinical_notes || 'None noted'}
 
-IMAGE QUALITY VALIDATION
-Optical Sharpness: ${screeningCase.quality.sharpness_score}/100 (${screeningCase.quality.is_acceptable ? 'Acceptable' : 'Sub-optimal'})
-Artifact Check: ${screeningCase.quality.issues && screeningCase.quality.issues.length > 0 ? screeningCase.quality.issues.join(', ') : 'Clean illumination, no glare'}
-
 AI ANALYSIS (REAL EFFICIENTNET-B0 INFERENCE)
 Primary Prediction: ${screeningCase.primary_diagnosis}
 Confidence: ${(screeningCase.confidence * 100).toFixed(1)}%
@@ -262,8 +258,8 @@ DISCLAIMER: "Research / Ideathon Prototype. Not intended for clinical diagnosis.
                   className="w-full h-48 object-contain rounded-lg"
                 />
                 <div className="mt-2 text-[11px] text-slate-400 flex items-center justify-between px-2">
-                  <span>Quality Score: {screeningCase.quality.sharpness_score}/100</span>
-                  <span className="text-emerald-400 font-semibold">Passed Pre-flight</span>
+                  <span>Clinical Dermoscopy</span>
+                  <span className="text-emerald-400 font-semibold">Verified</span>
                 </div>
               </div>
 
