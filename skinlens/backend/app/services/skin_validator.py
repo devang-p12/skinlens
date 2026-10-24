@@ -111,6 +111,7 @@ class SkinDomainValidator:
         # 4. Multi-Space Color Conversions
         # OpenCV expects BGR input for cvtColor
         bgr = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR)
+        gray = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2GRAY)
         ycrcb = cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb)
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
         lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
@@ -222,27 +223,37 @@ class SkinDomainValidator:
         lesion_ratio = 0.0
         contrast_std = 0.0
         if is_skin and roi_pixels >= 200:
-            L_ch = lab[:, :, 0].astype(float)
+            # 1. High-frequency / Local Saliency via Difference of Gaussians (DoG)
+            blur_small = cv2.GaussianBlur(gray, (7, 7), 0)
+            blur_large = cv2.GaussianBlur(gray, (35, 35), 0)
+            dog = np.abs(blur_small.astype(float) - blur_large.astype(float))
+
+            # 2. Chrominance variation (Melanin / Vascular redness deviation)
             a_ch = lab[:, :, 1].astype(float)
             b_ch = lab[:, :, 2].astype(float)
+            med_a = float(np.median(a_ch[non_vignette]))
+            med_b = float(np.median(b_ch[non_vignette]))
+            chroma_dev = np.sqrt((a_ch - med_a) ** 2 + (b_ch - med_b) ** 2)
 
-            # Estimate smooth illumination background via wide Gaussian blur
-            # Captures ambient room light gradients, limb curvature, and broad shadows
-            k_w = int(w * 0.25) | 1
-            k_h = int(h * 0.25) | 1
-            bg_L = cv2.GaussianBlur(L_ch, (k_w, k_h), 0)
+            # 3. Local color deviation against illumination-corrected background
+            k_w = int(w * 0.20) | 1
+            k_h = int(h * 0.20) | 1
+            bg_L = cv2.GaussianBlur(gray.astype(float), (k_w, k_h), 0)
             bg_a = cv2.GaussianBlur(a_ch, (k_w, k_h), 0)
             bg_b = cv2.GaussianBlur(b_ch, (k_w, k_h), 0)
 
-            # High-frequency local contrast deviation from surrounding cutaneous neighborhood
-            lum_dev = np.abs(L_ch - bg_L)
-            chroma_dev = np.sqrt((a_ch - bg_a) ** 2 + (b_ch - bg_b) ** 2)
-            local_dev = np.sqrt(lum_dev ** 2 + chroma_dev ** 2)
+            lum_dev = np.abs(gray.astype(float) - bg_L)
+            c_dev = np.sqrt((a_ch - bg_a) ** 2 + (b_ch - bg_b) ** 2)
+            combined_dev = np.sqrt(lum_dev ** 2 + c_dev ** 2)
 
-            focal_mask = (local_dev > 11.5) & non_vignette
+            # Focal anomaly: sharp edge/dog >= 18, local color deviation >= 10.5, or chroma shift >= 14
+            focal_mask = (
+                ((combined_dev > 10.5) | (dog > 18.0) | (chroma_dev > 14.0))
+                & non_vignette
+            )
 
-            # Morphological filtering to eliminate hairs, pores, and micro-texture noise
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+            # Morphological filtering to eliminate micro-pores and hair noise
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             cleaned = cv2.morphologyEx(focal_mask.astype(np.uint8), cv2.MORPH_OPEN, kernel)
             cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel)
 
@@ -258,7 +269,7 @@ class SkinDomainValidator:
                 cw = int(stats[i, cv2.CC_STAT_WIDTH])
                 ch = int(stats[i, cv2.CC_STAT_HEIGHT])
 
-                # Reject border-spanning shadow bands (shadows touching opposing image edges)
+                # Reject border-spanning shadows (lighting falloff along the whole sensor edge)
                 touches_left = (cx <= 4)
                 touches_right = (cx + cw >= w - 4)
                 touches_top = (cy <= 4)
@@ -266,18 +277,18 @@ class SkinDomainValidator:
                 is_border_shadow = (
                     (touches_left and touches_right)
                     or (touches_top and touches_bottom)
-                    or ((touches_left or touches_right) and (touches_top or touches_bottom) and comp_ratio > 3.0)
+                    or ((touches_left or touches_right) and (touches_top or touches_bottom) and comp_ratio > 15.0)
                 )
 
-                # Genuine focal lesion: contained in the optical field, not an edge shadow, ratio >= 0.6%
-                if not is_border_shadow and comp_ratio >= 0.6:
+                # Genuine focal lesion: not a border-spanning shadow, with at least 200 pixels
+                if not is_border_shadow and area >= 200:
                     genuine_lesion_found = True
                     if comp_ratio > max_lesion_ratio:
                         max_lesion_ratio = comp_ratio
 
             lesion_ratio = max_lesion_ratio
-            contrast_std = float(np.std(local_dev[non_vignette]))
-            has_lesion = bool(genuine_lesion_found and max_lesion_ratio >= 0.6)
+            contrast_std = float(np.std(combined_dev[non_vignette]))
+            has_lesion = bool(genuine_lesion_found and max_lesion_ratio > 0.0)
 
         return {
             "is_skin": bool(is_skin),
