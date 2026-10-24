@@ -15,6 +15,8 @@ class ImageQualityResult(BaseModel):
     skin_detected: bool = True
     skin_percentage: Optional[float] = 100.0
     phototype: Optional[str] = None
+    has_lesion: Optional[bool] = True
+    lesion_ratio: Optional[float] = None
     issues: List[str] = []
     recommendations: List[str] = []
 
@@ -47,11 +49,13 @@ class QualityChecks(BaseModel):
     brightness: bool
     format: bool
     skin_detected: bool = True
+    lesion_detected: Optional[bool] = True
 
 class ImageQualityResponse(BaseModel):
     valid: bool
     quality_score: float
     is_skin: bool = True
+    has_lesion: bool = True
     skin_percentage: float = 100.0
     phototype: Optional[str] = None
     checks: QualityChecks
@@ -69,6 +73,7 @@ class QualitySummary(BaseModel):
     valid: bool
     score: float
     is_skin: bool = True
+    has_lesion: bool = True
     skin_percentage: float = 100.0
     phototype: Optional[str] = None
 

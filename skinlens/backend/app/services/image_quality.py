@@ -207,9 +207,14 @@ class ImageQualityValidator:
             )
             message = f"The image is unsuitable for reliable evaluation ({issues_str}). {recommendation_txt}"
 
+        has_lesion = skin_result.get("has_lesion", True)
+        lesion_ratio = skin_result.get("lesion_ratio", 0.0)
+
         return {
             "valid": is_valid,
             "is_skin": is_skin,
+            "has_lesion": has_lesion,
+            "lesion_ratio": lesion_ratio,
             "skin_percentage": skin_pct,
             "phototype": phototype,
             "quality_score": quality_score,
@@ -219,6 +224,7 @@ class ImageQualityValidator:
                 "brightness": brightness_valid,
                 "format": format_valid,
                 "skin_detected": is_skin,
+                "lesion_detected": has_lesion,
             },
             "message": message,
             "details": {
@@ -229,6 +235,8 @@ class ImageQualityValidator:
                 "contrast_std": round(std_contrast, 1),
                 "skin_percentage": skin_pct,
                 "phototype": phototype,
+                "has_lesion": has_lesion,
+                "lesion_ratio": lesion_ratio,
             },
             "disclaimer": "This automated quality check is a prototype-level heuristic and is NOT clinically validated.",
         }

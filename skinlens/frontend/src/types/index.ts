@@ -11,6 +11,8 @@ export interface ImageQualityResult {
   contrast_score: number;
   resolution: ImageResolution;
   skin_detected?: boolean;
+  has_lesion?: boolean;
+  lesion_ratio?: number;
   skin_percentage?: number;
   phototype?: string;
   issues: string[];
@@ -132,6 +134,8 @@ export interface ScreeningApiResponse {
     valid: boolean;
     score: number;
     is_skin?: boolean;
+    has_lesion?: boolean;
+    lesion_ratio?: number;
     skin_percentage?: number;
     phototype?: string;
   };

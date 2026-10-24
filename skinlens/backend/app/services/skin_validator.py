@@ -217,11 +217,46 @@ class SkinDomainValidator:
                 "The neural model cannot process this upload because it is not a dermatological lesion."
             )
 
+        # 10. Lesion Presence / Saliency Analysis (Distinguish Healthy Normal Skin from Focal Lesion)
+        has_lesion = True
+        lesion_ratio = 0.0
+        contrast_std = 0.0
+        if is_skin and roi_pixels >= 200:
+            L_ch = lab[:, :, 0].astype(float)
+            a_ch = lab[:, :, 1].astype(float)
+            b_ch = lab[:, :, 2].astype(float)
+
+            med_L = float(np.median(L_ch[non_vignette]))
+            med_a = float(np.median(a_ch[non_vignette]))
+            med_b = float(np.median(b_ch[non_vignette]))
+
+            delta_E = np.sqrt((L_ch - med_L) ** 2 + (a_ch - med_a) ** 2 + (b_ch - med_b) ** 2)
+            anomaly_mask = (delta_E > 13.5) & non_vignette
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+            cleaned = cv2.morphologyEx(anomaly_mask.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+            cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel)
+
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(cleaned)
+            max_comp_area = 0
+            if num_labels > 1:
+                areas = stats[1:, cv2.CC_STAT_AREA]
+                max_comp_area = int(np.max(areas))
+
+            lesion_ratio = float((max_comp_area / roi_pixels) * 100.0)
+            contrast_std = float(np.std(L_ch[non_vignette]))
+
+            # Normal skin has low contrast and no focal anomalous connected component
+            has_lesion = bool((lesion_ratio >= 0.8) or (contrast_std >= 17.0 and lesion_ratio >= 0.4))
+
         return {
             "is_skin": bool(is_skin),
             "skin_percentage": skin_percentage,
             "confidence_score": round(confidence, 2),
             "phototype": phototype_estimate,
+            "has_lesion": bool(has_lesion),
+            "lesion_ratio": round(lesion_ratio, 2),
+            "contrast_std": round(contrast_std, 2),
             "issues": issues,
             "recommendations": recommendations,
             "message": message,
@@ -230,6 +265,9 @@ class SkinDomainValidator:
                 "texture_std_dev": round(texture_std, 1),
                 "green_ratio": round(green_ratio, 3),
                 "blue_ratio": round(blue_ratio, 3),
+                "has_lesion": bool(has_lesion),
+                "lesion_ratio": round(lesion_ratio, 2),
+                "contrast_std": round(contrast_std, 2),
             },
         }
 
@@ -240,10 +278,29 @@ class SkinDomainValidator:
             "skin_percentage": 0.0,
             "confidence_score": 0.0,
             "phototype": "Indeterminate",
+            "has_lesion": False,
+            "lesion_ratio": 0.0,
+            "contrast_std": 0.0,
             "issues": [message],
             "recommendations": ["Upload a valid image of a skin lesion."],
             "message": message,
             "details": {},
+        }
+
+    @classmethod
+    def detect_lesion_presence(
+        cls, image_input: Union[bytes, bytearray, np.ndarray, Image.Image, str, Path]
+    ) -> Dict[str, Any]:
+        """Evaluates whether an image contains a focal dermatological lesion or uniform normal skin."""
+        res = cls.validate(image_input)
+        return {
+            "is_skin": res["is_skin"],
+            "has_lesion": res.get("has_lesion", True),
+            "lesion_ratio": res.get("lesion_ratio", 0.0),
+            "contrast_std": res.get("contrast_std", 0.0),
+            "phototype": res.get("phototype", "Indeterminate"),
+            "confidence_score": res.get("confidence_score", 0.0),
+            "message": res.get("message", ""),
         }
 
 
@@ -252,3 +309,10 @@ def validate_skin_presence(
 ) -> Dict[str, Any]:
     """Convenience functional wrapper for SkinDomainValidator.validate."""
     return SkinDomainValidator.validate(image_input)
+
+
+def detect_lesion_presence(
+    image_input: Union[bytes, bytearray, np.ndarray, Image.Image, str, Path]
+) -> Dict[str, Any]:
+    """Convenience functional wrapper for SkinDomainValidator.detect_lesion_presence."""
+    return SkinDomainValidator.detect_lesion_presence(image_input)

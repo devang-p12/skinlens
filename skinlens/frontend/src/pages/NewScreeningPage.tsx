@@ -497,6 +497,25 @@ export const NewScreeningPage: React.FC<NewScreeningPageProps> = ({
           >
             Nevus Demo
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              loadDemoSample(
+                '/samples/normal_skin_sample.jpg',
+                'Samira Khan',
+                'Right Forearm',
+                32,
+                'Female',
+                'Healthy skin baseline',
+                [],
+                'Healthy unblemished cutaneous tissue with uniform pigmentation and natural biological entropy. Baseline check.',
+                98
+              )
+            }
+            className="px-2.5 py-1 rounded-lg bg-white shadow-xs font-semibold text-emerald-700 hover:bg-emerald-50 border border-emerald-200 transition-colors"
+          >
+            Normal Skin Demo
+          </button>
         </div>
       </div>
 

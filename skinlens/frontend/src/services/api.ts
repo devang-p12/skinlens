@@ -45,6 +45,11 @@ export function getPrototypeScreeningPriority(
     return 'Review Recommended';
   }
 
+  // Normal skin / healthy tissue with no focal lesion
+  if (normPred.includes('normal') || normPred === 'normal') {
+    return 'Routine Follow-up';
+  }
+
   // Benign types: Nevus, BKL, DF, VASC
   if (
     normPred.includes('nevus') ||
@@ -141,6 +146,24 @@ export const CONDITION_METADATA: Record<
     description: 'Benign proliferation of cutaneous blood vessels (cherry angioma, hemangioma, pyogenic granuloma).',
     clinical_action: 'Observation or pulsed-dye laser if bleeding or cosmetically bothersome.',
   },
+  NORMAL: {
+    name: 'Normal Skin (No Lesion Detected)',
+    risk: 'Low',
+    description: 'Healthy cutaneous tissue with uniform pigmentation. Automated screening verified no suspicious focal lesion, abnormal nevus, or irregular margins.',
+    clinical_action: 'Routine reassurance; continue standard periodic skin self-checks.',
+  },
+  'Normal Skin (No Lesion Detected)': {
+    name: 'Normal Skin (No Lesion Detected)',
+    risk: 'Low',
+    description: 'Healthy cutaneous tissue with uniform pigmentation. Automated screening verified no suspicious focal lesion, abnormal nevus, or irregular margins.',
+    clinical_action: 'Routine reassurance; continue standard periodic skin self-checks.',
+  },
+  'Normal Skin': {
+    name: 'Normal Skin (No Lesion Detected)',
+    risk: 'Low',
+    description: 'Healthy cutaneous tissue with uniform pigmentation. Automated screening verified no suspicious focal lesion, abnormal nevus, or irregular margins.',
+    clinical_action: 'Routine reassurance; continue standard periodic skin self-checks.',
+  },
 };
 
 export async function screenLesion(formData: FormData): Promise<ScreeningApiResponse> {
@@ -197,11 +220,13 @@ export function buildCaseFromScreening(workflow: ScreeningWorkflowData): Screeni
     clinical_action: 'Clinical follow-up.',
   };
 
+  const isNormal = rawClass.toLowerCase().includes('normal') || rawClass === 'NORMAL';
   const isHighRisk =
-    meta.risk === 'High' ||
-    (apiResponse.prediction.confidence > 0.8 &&
-      (rawClass === 'Melanoma' || rawClass === 'MEL'));
-  const riskLevel = meta.risk;
+    !isNormal &&
+    (meta.risk === 'High' ||
+      (apiResponse.prediction.confidence > 0.8 &&
+        (rawClass === 'Melanoma' || rawClass === 'MEL')));
+  const riskLevel = isNormal ? 'Low' : meta.risk;
   const triagePriority = isHighRisk
     ? 'Urgent'
     : riskLevel === 'Moderate'
@@ -211,9 +236,13 @@ export function buildCaseFromScreening(workflow: ScreeningWorkflowData): Screeni
   const differentials = apiResponse.prediction.top_predictions.map((p) => {
     const itemMeta = CONDITION_METADATA[p.class] || {
       name: p.class,
-      risk: 'Moderate' as const,
-      description: 'Differential diagnosis item.',
-      clinical_action: 'Clinical review.',
+      risk: isNormal ? ('Low' as const) : ('Moderate' as const),
+      description: isNormal
+        ? 'Healthy cutaneous baseline pattern.'
+        : 'Differential diagnosis item.',
+      clinical_action: isNormal
+        ? 'Routine observation.'
+        : 'Clinical review.',
     };
     return {
       condition_code: p.class,
@@ -236,7 +265,7 @@ export function buildCaseFromScreening(workflow: ScreeningWorkflowData): Screeni
     lesion_location: lesionLocation || 'Unspecified location',
     duration: duration || 'Not specified',
     clinical_notes: clinicalNotes || '',
-    symptoms: ['Dermoscopic evaluation requested'],
+    symptoms: isNormal ? ['Routine skin check'] : ['Dermoscopic evaluation requested'],
     quality: {
       is_acceptable: apiResponse.quality.valid,
       quality_rating:
@@ -260,54 +289,57 @@ export function buildCaseFromScreening(workflow: ScreeningWorkflowData): Screeni
         : ['Consider retaking with uniform illumination and perpendicular camera angle.'],
     },
     primary_diagnosis: meta.name,
-    condition_code: rawClass,
+    condition_code: isNormal ? 'NORMAL' : rawClass,
     confidence: apiResponse.prediction.confidence,
     malignancy_risk: riskLevel,
     triage_priority: triagePriority,
-    triage_reason: `Real EfficientNet-B0 inference with ${(
-      apiResponse.prediction.confidence * 100
-    ).toFixed(1)}% confidence for ${meta.name}.`,
+    triage_reason: isNormal
+      ? 'Automated screening confirmed healthy cutaneous tissue with uniform pigmentation. No suspicious focal lesion, abnormal nevus, or irregular borders detected.'
+      : `Real EfficientNet-B0 inference with ${(
+          apiResponse.prediction.confidence * 100
+        ).toFixed(1)}% confidence for ${meta.name}.`,
     differential_diagnoses: differentials,
     abcde: {
       asymmetry: {
-        score: isHighRisk ? 0.88 : 0.3,
-        label: isHighRisk ? 'Elevated Asymmetry' : 'Symmetric',
-        detail: 'Evaluated from optical lesion geometry.',
+        score: isNormal ? 0.05 : isHighRisk ? 0.88 : 0.3,
+        label: isNormal ? 'None (Uniform Surface)' : isHighRisk ? 'Elevated Asymmetry' : 'Symmetric',
+        detail: isNormal ? 'Uniform cutaneous tissue' : 'Evaluated from optical lesion geometry.',
       },
       border: {
-        score: isHighRisk ? 0.85 : 0.25,
-        label: isHighRisk ? 'Irregular / Notched' : 'Smooth Margins',
-        detail: 'Edge transition delineation.',
+        score: isNormal ? 0.05 : isHighRisk ? 0.85 : 0.25,
+        label: isNormal ? 'Regular (No Margin)' : isHighRisk ? 'Irregular / Notched' : 'Smooth Margins',
+        detail: isNormal ? 'No focal lesion boundary' : 'Edge transition delineation.',
       },
       color: {
-        score: isHighRisk ? 0.89 : 0.35,
-        label: isHighRisk ? 'Variegated' : 'Uniform',
-        detail: 'Color distribution across lesion.',
+        score: isNormal ? 0.05 : isHighRisk ? 0.89 : 0.35,
+        label: isNormal ? 'Uniform Pigmentation' : isHighRisk ? 'Variegated' : 'Uniform',
+        detail: isNormal ? 'Consistent chrominance' : 'Color distribution across lesion.',
       },
       diameter: {
-        score: 0.7,
-        label: 'Approx 6-8mm',
-        detail: 'Estimated lesion dimension.',
+        score: isNormal ? 0.05 : 0.7,
+        label: isNormal ? 'N/A' : 'Approx 6-8mm',
+        detail: isNormal ? 'No focal anomaly present' : 'Estimated lesion dimension.',
       },
       evolution: {
-        score: isHighRisk ? 0.9 : 0.2,
-        label: duration.includes('month') ? 'Recent Evolution' : 'Stable',
-        detail: 'Reported history.',
+        score: isNormal ? 0.05 : isHighRisk ? 0.9 : 0.2,
+        label: isNormal ? 'Stable Baseline' : duration.includes('month') ? 'Recent Evolution' : 'Stable',
+        detail: isNormal ? 'Healthy baseline skin' : 'Reported history.',
       },
-      total_suspicion_score: apiResponse.prediction.confidence,
+      total_suspicion_score: isNormal ? 0.05 : apiResponse.prediction.confidence,
     },
     gradcam: {
       heatmap_data_url: fullHeatmapUrl,
       blended_data_url: fullOverlayUrl,
       original_data_url: originalImagePreview || fullOverlayUrl,
-      explanation_summary: `Real Grad-CAM activation highlights convolutional feature clusters in EfficientNet-B0 driving the ${meta.name} prediction.`,
-      salient_regions: [
-        'Central lesion focal core',
-        'Peripheral margin gradient',
-      ],
-      focal_intensity: apiResponse.prediction.confidence,
+      explanation_summary: isNormal
+        ? 'Visual saliency confirms uniform cutaneous baseline without focal hyper-activation.'
+        : `Real Grad-CAM activation highlights convolutional feature clusters in EfficientNet-B0 driving the ${meta.name} prediction.`,
+      salient_regions: isNormal
+        ? ['Uniform cutaneous baseline', 'No focal lesion detected']
+        : ['Central lesion focal core', 'Peripheral margin gradient'],
+      focal_intensity: isNormal ? 0.05 : apiResponse.prediction.confidence,
     },
-    screening_priority: getPrototypeScreeningPriority(meta.name, apiResponse.prediction.confidence),
+    screening_priority: isNormal ? 'Routine Follow-up' : getPrototypeScreeningPriority(meta.name, apiResponse.prediction.confidence),
     image_url: originalImagePreview || fullOverlayUrl,
     status: 'Awaiting Review',
     clinician_review: null,

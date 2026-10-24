@@ -139,11 +139,15 @@ export const QualityIndicator: React.FC<QualityIndicatorProps> = ({
         </div>
       </div>
 
-      {/* Skin Verification Tag */}
-      <div className="mt-3 flex items-center justify-between text-[11px] px-2.5 py-1.5 rounded-lg bg-teal-50/80 border border-teal-200/60 text-teal-900 font-medium">
+      {/* Skin & Lesion Verification Tags */}
+      <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-teal-50/80 border border-teal-200/60 text-teal-900 font-medium">
         <div className="flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-          <span>Cutaneous Tissue Verified: Pre-classification domain gate passed</span>
+          <span>
+            {quality.has_lesion === false
+              ? 'Cutaneous Surface: Uniform Healthy Skin (No Focal Lesion Detected)'
+              : 'Cutaneous Tissue Verified: Pre-classification domain gate passed'}
+          </span>
         </div>
         <span className="font-semibold text-teal-700">
           {quality.phototype || 'Fitzpatrick I-VI Profile'}
