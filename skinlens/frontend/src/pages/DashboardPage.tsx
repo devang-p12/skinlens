@@ -12,6 +12,7 @@ import {
   Calendar,
   Sparkles,
   ArrowRight,
+  FolderOpen,
 } from 'lucide-react';
 import { ScreeningCase, DashboardStats } from '../types';
 import { SkinLensApi } from '../services/api';
@@ -96,16 +97,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Mandatory Clinical Decision Support Disclaimer */}
-      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center justify-between gap-3 shadow-xs">
-        <span className="font-semibold text-slate-800">
-          "SkinLens is an AI-assisted screening prototype and does not replace professional medical assessment or provide a definitive diagnosis."
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 shrink-0">
-          Decision Support
-        </span>
-      </div>
-
       {/* Hero Welcome Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white p-7 sm:p-8 shadow-xl border border-teal-900/40">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -157,12 +148,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Screenings Today
             </p>
-            <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
-              {loading ? '—' : stats.screenings_today}
-            </h3>
-            <p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>+18% vs prior day</span>
+            {loading ? (
+              <div className="skeleton h-8 w-16 mt-2 rounded-lg" />
+            ) : (
+              <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
+                {stats.screenings_today}
+              </h3>
+            )}
+            <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+              <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
+              <span>Total processed in registry</span>
             </p>
           </div>
           <div className="p-3 rounded-xl bg-teal-50 text-teal-700 border border-teal-100">
@@ -179,9 +174,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <h3 className="text-2xl sm:text-3xl font-extrabold text-amber-600 mt-2">
               {loading ? '—' : stats.cases_awaiting_review}
             </h3>
-            <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+            <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
-              <span>Avg queue time: 24 min</span>
+              <span>Pending clinician attestation</span>
             </p>
           </div>
           <div className="p-3 rounded-xl bg-amber-50 text-amber-700 border border-amber-100">
@@ -293,101 +288,124 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </CardHeader>
 
         <CardBody className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200/80">
-                <tr>
-                  <th className="px-5 py-3.5">Case ID / Patient</th>
-                  <th className="px-4 py-3.5">Lesion Location</th>
-                  <th className="px-4 py-3.5">AI Prediction</th>
-                  <th className="px-4 py-3.5">Confidence</th>
-                  <th className="px-4 py-3.5">Screening Priority</th>
-                  <th className="px-4 py-3.5">Status</th>
-                  <th className="px-5 py-3.5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recentCases.map((c) => {
-                  const priority =
-                    c.screening_priority ||
-                    (c.malignancy_risk === 'High'
-                      ? 'Review Recommended'
-                      : 'Routine Follow-up');
-                  return (
-                    <tr
-                      key={c.case_id}
-                      onClick={() => onViewCase(c.case_id)}
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                    >
-                      <td className="px-5 py-4">
-                        <div className="font-semibold text-slate-900">{c.patient_name}</div>
-                        <div className="text-xs text-slate-400 font-mono">
-                          {c.case_id} • Age {c.patient_age}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-xs font-medium text-slate-700">
-                        {c.lesion_location}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="font-bold text-slate-900 block text-xs sm:text-sm">
-                          {c.primary_diagnosis}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          {c.condition_code}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-800">
-                            {(c.confidence * 100).toFixed(1)}%
-                          </span>
-                          <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${
-                                c.confidence >= 0.9
-                                  ? 'bg-teal-500'
-                                  : c.confidence >= 0.8
-                                  ? 'bg-sky-500'
-                                  : 'bg-amber-500'
-                              }`}
-                              style={{ width: `${c.confidence * 100}%` }}
-                            />
+          {recentCases.length === 0 ? (
+            <div className="py-12 px-6 text-center max-w-md mx-auto space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                <FolderOpen className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-800">No Patient Cases Recorded</h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  The clinical registry currently has no cases. Start your first patient screening to intake demographics, validate image quality, and run AI analysis.
+                </p>
+              </div>
+              <Button
+                onClick={onNewScreening}
+                size="sm"
+                variant="primary"
+                leftIcon={<PlusCircle className="w-4 h-4" />}
+                className="bg-teal-600 hover:bg-teal-700 text-xs"
+              >
+                Start First Screening
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200/80">
+                  <tr>
+                    <th className="px-5 py-3.5">Case ID / Patient</th>
+                    <th className="px-4 py-3.5">Lesion Location</th>
+                    <th className="px-4 py-3.5">AI Prediction</th>
+                    <th className="px-4 py-3.5">Confidence</th>
+                    <th className="px-4 py-3.5">Screening Priority</th>
+                    <th className="px-4 py-3.5">Status</th>
+                    <th className="px-5 py-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentCases.map((c) => {
+                    const priority =
+                      c.screening_priority ||
+                      (c.malignancy_risk === 'High'
+                        ? 'Review Recommended'
+                        : 'Routine Follow-up');
+                    return (
+                      <tr
+                        key={c.case_id}
+                        onClick={() => onViewCase(c.case_id)}
+                        className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                      >
+                        <td className="px-5 py-4">
+                          <div className="font-semibold text-slate-900">{c.patient_name}</div>
+                          <div className="text-xs text-slate-400 font-mono">
+                            {c.case_id} • Age {c.patient_age}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
-                            priority === 'Prompt Professional Evaluation'
-                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                              : priority === 'Review Recommended'
-                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          }`}
-                        >
-                          {priority}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">{getStatusBadge(c.status)}</td>
-                      <td className="px-5 py-4 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onViewCase(c.case_id);
-                          }}
-                        >
-                          Inspect Case
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="px-4 py-4 text-xs font-medium text-slate-700">
+                          {c.lesion_location}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="font-bold text-slate-900 block text-xs sm:text-sm">
+                            {c.primary_diagnosis}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {c.condition_code}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-800">
+                              {(c.confidence * 100).toFixed(1)}%
+                            </span>
+                            <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  c.confidence >= 0.9
+                                    ? 'bg-teal-500'
+                                    : c.confidence >= 0.8
+                                    ? 'bg-sky-500'
+                                    : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${c.confidence * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
+                              priority === 'Prompt Professional Evaluation'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : priority === 'Review Recommended'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}
+                          >
+                            {priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">{getStatusBadge(c.status)}</td>
+                        <td className="px-5 py-4 text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onViewCase(c.case_id);
+                            }}
+                          >
+                            Inspect Case
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardBody>
       </Card>
     </div>

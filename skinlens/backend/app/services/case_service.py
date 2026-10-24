@@ -19,11 +19,13 @@ class CaseService:
     """In-memory case repository seeded with realistic clinical cases for the MVP."""
     
     _cases: Dict[str, ScreeningCase] = {}
+    _seeded: bool = False
 
     @classmethod
     def _seed_initial_cases(cls):
-        if cls._cases:
+        if cls._seeded:
             return
+        cls._seeded = True
 
         mock_data = [
             {
@@ -449,6 +451,25 @@ class CaseService:
         cls._seed_initial_cases()
         cls._cases[case.case_id] = case
         return case
+
+    @classmethod
+    def delete_case(cls, case_id: str) -> bool:
+        cls._seed_initial_cases()
+        if case_id in cls._cases:
+            del cls._cases[case_id]
+            return True
+        return False
+
+    @classmethod
+    def clear_all_cases(cls) -> None:
+        cls._cases.clear()
+
+    @classmethod
+    def reset_demo_cases(cls) -> List[ScreeningCase]:
+        cls._cases.clear()
+        cls._seeded = False
+        cls._seed_initial_cases()
+        return list(cls._cases.values())
 
     @classmethod
     def submit_review(

@@ -33,6 +33,7 @@ interface ClinicianReviewPanelProps {
   onReviewSubmit?: (review: ClinicianReview) => Promise<void> | void;
   onReferralCreate?: (referral: SpecialistReferral) => Promise<void> | void;
   onRequestBetterImage?: (reason: string) => Promise<void> | void;
+  onViewSummary?: () => void;
   className?: string;
 }
 
@@ -41,6 +42,7 @@ export const ClinicianReviewPanel: React.FC<ClinicianReviewPanelProps> = ({
   onReviewSubmit,
   onReferralCreate,
   onRequestBetterImage,
+  onViewSummary,
   className = '',
 }) => {
   const priority: ScreeningPriority =
@@ -657,24 +659,37 @@ export const ClinicianReviewPanel: React.FC<ClinicianReviewPanelProps> = ({
                 </div>
               </div>
 
-              {/* Copy Referral Action */}
-              <button
-                type="button"
-                onClick={copyReferralId}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-800 hover:bg-rose-100 transition-colors shrink-0 shadow-xs"
-              >
-                {copiedReferral ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Case Referral</span>
-                  </>
+              {/* Actions: Copy Referral & View Case Summary */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={copyReferralId}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-800 hover:bg-rose-100 transition-colors shrink-0 shadow-xs"
+                >
+                  {copiedReferral ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Case Referral</span>
+                    </>
+                  )}
+                </button>
+
+                {onViewSummary && (
+                  <button
+                    type="button"
+                    onClick={onViewSummary}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shrink-0 shadow-xs"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>View Case Summary</span>
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
 
             {/* Exactly Required Output Grid: Case ID, Priority, Status: Awaiting Specialist Review */}
@@ -762,16 +777,28 @@ export const ClinicianReviewPanel: React.FC<ClinicianReviewPanelProps> = ({
 
         {/* Reviewed Banner Feedback */}
         {activeAction === 'reviewed' && (
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex items-start gap-3 shadow-xs animate-in fade-in">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="space-y-1 text-xs">
-              <h4 className="font-bold text-emerald-900">
-                Case Reviewed Successfully • Status: Reviewed
-              </h4>
-              <p className="text-emerald-800 leading-relaxed">
-                Attested by {reviewerName}. Case status updated and logged in patient clinical history.
-              </p>
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 text-xs">
+                <h4 className="font-bold text-emerald-900">
+                  Case Reviewed Successfully • Status: Reviewed
+                </h4>
+                <p className="text-emerald-800 leading-relaxed">
+                  Attested by {reviewerName}. Case status updated and logged in patient clinical history.
+                </p>
+              </div>
             </div>
+            {onViewSummary && (
+              <button
+                type="button"
+                onClick={onViewSummary}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition-colors shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                <span>View Case Summary</span>
+              </button>
+            )}
           </div>
         )}
 

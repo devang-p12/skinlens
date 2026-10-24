@@ -12,6 +12,9 @@ class ImageQualityResult(BaseModel):
     lighting_score: float = Field(..., ge=0, le=100)
     contrast_score: float = Field(..., ge=0, le=100)
     resolution: ImageResolution
+    skin_detected: bool = True
+    skin_percentage: Optional[float] = 100.0
+    phototype: Optional[str] = None
     issues: List[str] = []
     recommendations: List[str] = []
 
@@ -43,10 +46,14 @@ class QualityChecks(BaseModel):
     blur: bool
     brightness: bool
     format: bool
+    skin_detected: bool = True
 
 class ImageQualityResponse(BaseModel):
     valid: bool
     quality_score: float
+    is_skin: bool = True
+    skin_percentage: float = 100.0
+    phototype: Optional[str] = None
     checks: QualityChecks
     message: Optional[str] = None
     disclaimer: str = "This quality assessment is a prototype-level heuristic and is NOT clinically validated."
@@ -61,6 +68,9 @@ class GradCAMResponse(BaseModel):
 class QualitySummary(BaseModel):
     valid: bool
     score: float
+    is_skin: bool = True
+    skin_percentage: float = 100.0
+    phototype: Optional[str] = None
 
 class PredictionSummary(BaseModel):
     class_: str = Field(..., serialization_alias="class", alias="class")

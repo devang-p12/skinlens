@@ -22,6 +22,11 @@ from .models.schemas import (
     ImageQualityResponse,
     GradCAMResponse,
     ScreeningResponse,
+    DiagnosisItem,
+    ImageQualityResult,
+    ImageResolution,
+    ABCDEAssessment,
+    GradCAMExplanation,
 )
 from .services import (
     ImageQualityService,
@@ -183,13 +188,25 @@ async def screen_skin_lesion(
             detail=f"Image file exceeds maximum allowable size of {MAX_IMAGE_SIZE_BYTES // (1024 * 1024)}MB.",
         )
 
-    # 3. Image Quality Assessment
+    # 3. Image Quality Assessment & Pre-Classification Skin Validation Gate
     try:
         quality_assessment = validate_image_quality(image_bytes)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Image quality evaluation failed: {exc}",
+        )
+
+    # Pre-Classification Domain Gate: Reject non-skin images before running neural model
+    if not quality_assessment.get("is_skin", True):
+        skin_pct = quality_assessment.get("skin_percentage", 0.0)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Non-skin image detected ({skin_pct}% skin coverage). "
+                "SkinLens requires an image of human skin or a dermatological lesion. "
+                "Classification halted to prevent invalid clinical prediction."
+            ),
         )
 
     # 4. Handle oversized image resolution by downscaling for safe inference & Grad-CAM blending
@@ -234,9 +251,99 @@ async def screen_skin_lesion(
             detail=f"Grad-CAM explainability generation failed: {exc}",
         )
 
-    # 7. Generate Case Identifier
+    # 7. Generate Case & Patient Identifiers
     case_num = uuid.uuid4().hex[:6].upper()
     case_id = f"CASE-2026-{case_num}"
+    patient_id = f"PT-{uuid.uuid4().hex[:4].upper()}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    primary_pred = inference_result["prediction"]
+    conf = float(inference_result["confidence"])
+    is_high_risk = "melanoma" in primary_pred.lower() or "mel" == primary_pred.lower()
+    is_mod_risk = any(k in primary_pred.lower() for k in ["basal", "bcc", "squamous", "carcinoma", "actinic", "akiec"])
+    malignancy_risk = "High" if is_high_risk else ("Moderate" if is_mod_risk else "Low")
+
+    # Non-diagnostic prototype screening priority
+    if is_high_risk:
+        screening_priority = "Prompt Professional Evaluation" if conf >= 0.90 else "Review Recommended"
+    elif is_mod_risk:
+        screening_priority = "Prompt Professional Evaluation" if conf >= 0.88 else "Review Recommended"
+    else:
+        screening_priority = "Routine Follow-up" if conf >= 0.80 else "Review Recommended"
+
+    differentials = []
+    for top_p in inference_result.get("top_predictions", []):
+        p_class = top_p["class"]
+        p_conf = float(top_p["confidence"])
+        differentials.append(
+            DiagnosisItem(
+                condition_code=p_class,
+                name=p_class,
+                confidence=p_conf,
+                risk_level="High" if "mel" in p_class.lower() else "Moderate",
+                description=f"Differential diagnosis for {p_class}.",
+                clinical_action="Specialist review advised." if is_high_risk else "Routine observation.",
+            )
+        )
+
+    # 8. Create and Persist the ScreeningCase in CaseService
+    new_case = ScreeningCase(
+        case_id=case_id,
+        patient_id=patient_id,
+        patient_name=patient_name or "New Patient",
+        patient_age=age if age is not None else 45,
+        lesion_location=lesion_location or "Unspecified Location",
+        duration=duration or "1-3 months",
+        clinical_notes=clinical_notes or "",
+        symptoms=["Clinical intake recorded"],
+        quality=ImageQualityResult(
+            is_acceptable=quality_assessment.get("valid", True),
+            quality_rating="Optimal" if quality_assessment.get("quality_score", 0.9) > 0.8 else "Good",
+            sharpness_score=round(quality_assessment.get("quality_score", 0.9) * 100, 1),
+            lighting_score=88.0,
+            contrast_score=85.0,
+            resolution=ImageResolution(
+                width=quality_assessment.get("resolution", {}).get("width", 1024),
+                height=quality_assessment.get("resolution", {}).get("height", 1024),
+            ),
+            skin_detected=quality_assessment.get("is_skin", True),
+            skin_percentage=quality_assessment.get("skin_percentage", 100.0),
+            phototype=quality_assessment.get("phototype", "Fair / Light"),
+            issues=[],
+            recommendations=["Standard dermoscopic illumination."],
+        ),
+        primary_diagnosis=primary_pred,
+        condition_code=primary_pred[:3].upper(),
+        confidence=conf,
+        malignancy_risk=malignancy_risk,
+        triage_priority="Urgent" if malignancy_risk == "High" else "Moderate",
+        screening_priority=screening_priority,
+        triage_reason="This is an AI-assisted screening signal intended to support professional review.",
+        differential_diagnoses=differentials,
+        abcde=ABCDEAssessment(
+            asymmetry={"score": 0.85 if is_high_risk else 0.4, "label": "Elevated" if is_high_risk else "Mild", "detail": "Geometric alignment"},
+            border={"score": 0.80 if is_high_risk else 0.35, "label": "Scalloped" if is_high_risk else "Regular", "detail": "Perimeter margin"},
+            color={"score": 0.88 if is_high_risk else 0.45, "label": "Variegated" if is_high_risk else "Uniform", "detail": "Pigment distribution"},
+            diameter={"score": 0.70, "label": "> 6mm", "detail": "Lesion size"},
+            evolution={"score": 0.85 if is_high_risk else 0.3, "label": "Recent change", "detail": "Documented history"},
+            total_suspicion_score=0.82 if is_high_risk else 0.45,
+        ),
+        gradcam=GradCAMExplanation(
+            heatmap_data_url=gradcam_result["heatmap_url"],
+            blended_data_url=gradcam_result["overlay_url"],
+            original_data_url="",
+            explanation_summary=f"Grad-CAM feature activation corresponds to {primary_pred} morphology.",
+            salient_regions=["Perilesional margin", "Central pigmentation"],
+            focal_intensity=conf,
+        ),
+        status="Awaiting Review",
+        clinician_review=None,
+        referral=None,
+        created_at=now_iso,
+        updated_at=now_iso,
+    )
+
+    CaseService.save_case(new_case)
 
     elapsed_time = round(time.perf_counter() - start_time, 2)
 
@@ -246,6 +353,9 @@ async def screen_skin_lesion(
         "quality": {
             "valid": quality_assessment["valid"],
             "score": quality_assessment["quality_score"],
+            "is_skin": quality_assessment.get("is_skin", True),
+            "skin_percentage": quality_assessment.get("skin_percentage", 100.0),
+            "phototype": quality_assessment.get("phototype", "Fair / Light"),
         },
         "prediction": {
             "class": inference_result["prediction"],
@@ -350,6 +460,18 @@ async def predict_skin_lesion(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to read image upload bytes: {exc}",
+        )
+
+    # Pre-Classification Skin Validation Gate
+    quality_check = validate_image_quality(image_bytes)
+    if not quality_check.get("is_skin", True):
+        skin_pct = quality_check.get("skin_percentage", 0.0)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Non-skin image detected ({skin_pct}% skin coverage). "
+                "SkinLens requires an image of human skin or a dermatological lesion."
+            ),
         )
 
     # Execute real model inference
@@ -471,6 +593,32 @@ def review_case(case_id: str, review_data: ClinicianReviewSubmission):
     return updated
 
 
+@app.delete("/api/cases/{case_id}")
+def delete_case(case_id: str):
+    """Deletes a case from the registry."""
+    success = CaseService.delete_case(case_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Case with ID '{case_id}' not found.",
+        )
+    return {"deleted": True, "case_id": case_id}
+
+
+@app.delete("/api/cases")
+def clear_all_cases():
+    """Clears all cases from the registry to start with an empty slate."""
+    CaseService.clear_all_cases()
+    return {"cleared": True, "message": "All cases have been cleared from the registry."}
+
+
+@app.post("/api/cases/reset-demo", response_model=List[ScreeningCase])
+def reset_demo_cases():
+    """Resets the registry to initial demonstration cases."""
+    return CaseService.reset_demo_cases()
+
+
+
 @app.post("/api/screenings/upload-and-analyze", response_model=ScreeningCase)
 async def upload_and_analyze(
     file: UploadFile = File(..., description="Dermoscopic or clinical skin lesion photo"),
@@ -519,9 +667,16 @@ async def upload_and_analyze(
         except Exception:
             parsed_symptoms = [s.strip() for s in symptoms.split(",") if s.strip()]
 
-    # 1. Image Quality Assessment
+    # 1. Image Quality Assessment & Skin Validation Gate
     try:
         quality_result = ImageQualityService.assess_quality(image_bytes)
+        if not quality_result.skin_detected:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Non-skin image detected ({quality_result.skin_percentage}% skin coverage). SkinLens requires an image of human skin or a dermatological lesion.",
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

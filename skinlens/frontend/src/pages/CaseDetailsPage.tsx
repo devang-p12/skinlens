@@ -9,9 +9,10 @@ import {
   AlertTriangle,
   ShieldAlert,
   Stethoscope,
-  Info,
   ArrowRight,
   Sparkles,
+  FileText,
+  PlusCircle,
 } from 'lucide-react';
 import { ScreeningCase, ClinicianReview, SpecialistReferral } from '../types';
 import { SkinLensApi } from '../services/api';
@@ -22,6 +23,9 @@ import { ABCDECard } from '../components/ABCDECard';
 import { PrototypeScreeningPriority } from '../components/PrototypeScreeningPriority';
 import { CaseTimeline } from '../components/CaseTimeline';
 import { ClinicianReviewPanel } from '../components/ClinicianReviewPanel';
+import { GradCAMViewer } from '../components/GradCAMViewer';
+import { WorkflowIndicator } from '../components/WorkflowIndicator';
+import { CaseSummaryModal } from '../components/CaseSummaryModal';
 
 interface CaseDetailsPageProps {
   caseId: string;
@@ -37,6 +41,7 @@ export const CaseDetailsPage: React.FC<CaseDetailsPageProps> = ({
   const [currentCase, setCurrentCase] = useState<ScreeningCase | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     let mounted = true;
@@ -124,6 +129,12 @@ export const CaseDetailsPage: React.FC<CaseDetailsPageProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-7 pb-24">
+      {/* 5-Step Workflow Stepper Indicator */}
+      <WorkflowIndicator
+        currentStep="action"
+        completedSteps={['capture', 'validate', 'analyze', 'explain']}
+      />
+
       {/* Top Header & Navigation Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div className="flex items-center gap-3">
@@ -172,7 +183,16 @@ export const CaseDetailsPage: React.FC<CaseDetailsPageProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            onClick={() => setIsSummaryModalOpen(true)}
+            variant="outline"
+            size="sm"
+            leftIcon={<FileText className="w-4 h-4 text-teal-600" />}
+            className="border-teal-300 text-teal-800 hover:bg-teal-50 font-semibold"
+          >
+            Case Summary
+          </Button>
           <Button
             onClick={() => window.print()}
             variant="outline"
@@ -200,20 +220,6 @@ export const CaseDetailsPage: React.FC<CaseDetailsPageProps> = ({
         </div>
       )}
 
-      {/* MANDATORY TOP DISCLAIMER:
-          "SkinLens is an AI-assisted screening prototype and does not replace professional medical assessment or provide a definitive diagnosis." */}
-      <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs flex items-start gap-3 shadow-xs">
-        <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-        <div className="space-y-0.5">
-          <span className="font-bold text-amber-900 block uppercase tracking-wide text-[11px]">
-            Clinical Decision-Support Notice
-          </span>
-          <p className="text-slate-800 leading-relaxed font-medium">
-            "SkinLens is an AI-assisted screening prototype and does not replace professional medical assessment or provide a definitive diagnosis."
-          </p>
-        </div>
-      </div>
-
       {/* SECTION 1: PROTOTYPE SCREENING PRIORITY */}
       <PrototypeScreeningPriority
         prediction={currentCase.primary_diagnosis}
@@ -221,15 +227,39 @@ export const CaseDetailsPage: React.FC<CaseDetailsPageProps> = ({
         priority={currentCase.screening_priority}
       />
 
-      {/* SECTION 2: CLINICIAN REVIEW */}
+      {/* SECTION 2: EXPLAINABLE AI GRAD-CAM VISUAL HIGHLIGHT */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+          <div>
+            <h3 className="text-lg font-extrabold text-slate-900">
+              Explainable AI: Real Grad-CAM Visualization
+            </h3>
+            <p className="text-xs text-slate-500">
+              Visual proof from the convolutional feature layer verifying what pixels guided the model
+            </p>
+          </div>
+          <span className="text-xs font-bold text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
+            Interactive Visual Highlight
+          </span>
+        </div>
+
+        <GradCAMViewer
+          gradcam={currentCase.gradcam}
+          primaryDiagnosis={currentCase.primary_diagnosis}
+          confidence={currentCase.confidence}
+        />
+      </div>
+
+      {/* SECTION 3: CLINICIAN REVIEW PANEL */}
       <ClinicianReviewPanel
         screeningCase={currentCase}
         onReviewSubmit={handleReviewSubmit}
         onReferralCreate={handleReferralCreate}
         onRequestBetterImage={handleRequestBetterImage}
+        onViewSummary={() => setIsSummaryModalOpen(true)}
       />
 
-      {/* SECTION 3: 7-STEP CASE TIMELINE */}
+      {/* SECTION 4: 7-STEP CASE TIMELINE & DEMOGRAPHICS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7">
           <CaseTimeline
@@ -297,6 +327,13 @@ export const CaseDetailsPage: React.FC<CaseDetailsPageProps> = ({
 
       {/* ABCDE Dermatological Criteria Breakdown */}
       <ABCDECard abcde={currentCase.abcde} />
+
+      {/* Case Summary Modal */}
+      <CaseSummaryModal
+        screeningCase={currentCase}
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+      />
     </div>
   );
 };

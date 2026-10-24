@@ -10,6 +10,9 @@ export interface ImageQualityResult {
   lighting_score: number;
   contrast_score: number;
   resolution: ImageResolution;
+  skin_detected?: boolean;
+  skin_percentage?: number;
+  phototype?: string;
   issues: string[];
   recommendations: string[];
 }
@@ -116,7 +119,7 @@ export interface DashboardStats {
   total_screenings: number;
 }
 
-export type PageView = 'dashboard' | 'new-screening' | 'result' | 'cases' | 'case-details';
+export type PageView = 'landing' | 'dashboard' | 'new-screening' | 'result' | 'cases' | 'case-details';
 
 export interface ScreeningApiTopPrediction {
   class: string;
@@ -128,6 +131,9 @@ export interface ScreeningApiResponse {
   quality: {
     valid: boolean;
     score: number;
+    is_skin?: boolean;
+    skin_percentage?: number;
+    phototype?: string;
   };
   prediction: {
     class: string;
@@ -144,6 +150,7 @@ export interface ScreeningApiResponse {
   };
   processing_time: number;
 }
+
 
 export interface ScreeningWorkflowData {
   apiResponse: ScreeningApiResponse;

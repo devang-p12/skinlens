@@ -13,6 +13,9 @@ import {
   CheckCircle2,
   Clock,
   Camera,
+  Trash2,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 import { ScreeningCase } from '../types';
 import { SkinLensApi } from '../services/api';
@@ -34,6 +37,7 @@ export const CasesPage: React.FC<CasesPageProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedRisk, setSelectedRisk] = useState<string>('All');
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const fetchCases = async () => {
     setLoading(true);
@@ -58,6 +62,49 @@ export const CasesPage: React.FC<CasesPageProps> = ({
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchCases();
+  };
+
+  const handleDeleteCase = async (e: React.MouseEvent, caseId: string, patientName: string) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to delete screening case ${caseId} (${patientName})?`)) {
+      return;
+    }
+    try {
+      await SkinLensApi.deleteCase(caseId);
+      setCases((prev) => prev.filter((c) => c.case_id !== caseId));
+      setActionNotice(`Case ${caseId} deleted successfully.`);
+      setTimeout(() => setActionNotice(null), 3000);
+    } catch (err) {
+      console.error('Failed to delete case:', err);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to clear all screening cases? This removes pre-existing demo data and lets you start with a clean slate.')) {
+      return;
+    }
+    try {
+      await SkinLensApi.clearAllCases();
+      setCases([]);
+      setActionNotice('Registry cleared. All pre-existing cases removed.');
+      setTimeout(() => setActionNotice(null), 3500);
+    } catch (err) {
+      console.error('Failed to clear cases:', err);
+    }
+  };
+
+  const handleResetDemo = async () => {
+    try {
+      setLoading(true);
+      const restored = await SkinLensApi.resetDemoCases();
+      setCases(restored);
+      setActionNotice('Pre-existing demo cases restored.');
+      setTimeout(() => setActionNotice(null), 3000);
+    } catch (err) {
+      console.error('Failed to reset demo cases:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getRiskBadge = (risk: string) => {
@@ -92,15 +139,21 @@ export const CasesPage: React.FC<CasesPageProps> = ({
 
   return (
     <div className="space-y-6 pb-16">
-      {/* Mandatory Clinical Decision Support Disclaimer */}
-      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center justify-between gap-3 shadow-xs">
-        <span className="font-semibold text-slate-800">
-          "SkinLens is an AI-assisted screening prototype and does not replace professional medical assessment or provide a definitive diagnosis."
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 shrink-0">
-          Decision Support
-        </span>
-      </div>
+      {/* Action Notification Toast */}
+      {actionNotice && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center justify-between animate-fade-in shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>{actionNotice}</span>
+          </div>
+          <button
+            onClick={() => setActionNotice(null)}
+            className="text-emerald-600 hover:text-emerald-800 text-xs font-bold px-2 py-0.5"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
@@ -109,6 +162,9 @@ export const CasesPage: React.FC<CasesPageProps> = ({
             <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700">
               Clinical Registry
             </span>
+            <span className="text-xs font-semibold text-slate-500">
+              ({cases.length} {cases.length === 1 ? 'case' : 'cases'})
+            </span>
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 mt-1">Screening Cases</h1>
           <p className="text-sm text-slate-500">
@@ -116,14 +172,41 @@ export const CasesPage: React.FC<CasesPageProps> = ({
           </p>
         </div>
 
-        <Button
-          onClick={onNewScreening}
-          variant="primary"
-          leftIcon={<PlusCircle className="w-4 h-4" />}
-          className="bg-teal-600 hover:bg-teal-700 shadow-md shadow-teal-600/20"
-        >
-          New Screening
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {cases.length > 0 && (
+            <Button
+              onClick={handleClearAll}
+              variant="outline"
+              size="md"
+              leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
+              className="text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs"
+              title="Remove pre-existing demo cases to start clean"
+            >
+              Clear Registry
+            </Button>
+          )}
+
+          <Button
+            onClick={handleResetDemo}
+            variant="secondary"
+            size="md"
+            leftIcon={<RotateCcw className="w-3.5 h-3.5 text-slate-500" />}
+            className="text-xs"
+            title="Reset to default demo cases"
+          >
+            Reset Demo
+          </Button>
+
+          <Button
+            onClick={onNewScreening}
+            variant="primary"
+            size="md"
+            leftIcon={<PlusCircle className="w-4 h-4" />}
+            className="bg-teal-600 hover:bg-teal-700 shadow-md shadow-teal-600/20 text-xs sm:text-sm font-semibold"
+          >
+            New Screening
+          </Button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -199,22 +282,36 @@ export const CasesPage: React.FC<CasesPageProps> = ({
               <p className="text-sm">Loading screening cases...</p>
             </div>
           ) : cases.length === 0 ? (
-            <div className="py-16 text-center text-slate-500 space-y-3">
-              <FolderOpen className="w-10 h-10 text-slate-300 mx-auto" />
+            <div className="py-16 px-6 text-center max-w-md mx-auto space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mx-auto text-teal-600 shadow-sm">
+                <FolderOpen className="w-7 h-7" />
+              </div>
               <div>
-                <p className="text-base font-semibold text-slate-800">No cases found</p>
-                <p className="text-xs text-slate-400">
-                  Try adjusting search parameters or start a new patient screening.
+                <h3 className="text-base font-bold text-slate-900">Clinical Registry is Empty</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  No patient screening records exist in the registry. You can start fresh by intaking a new patient, or restore the pre-existing demonstration cases.
                 </p>
               </div>
-              <Button
-                onClick={onNewScreening}
-                variant="outline"
-                size="sm"
-                leftIcon={<PlusCircle className="w-4 h-4" />}
-              >
-                Create Screening
-              </Button>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
+                <Button
+                  onClick={onNewScreening}
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<PlusCircle className="w-4 h-4" />}
+                  className="bg-teal-600 hover:bg-teal-700 shadow-sm w-full sm:w-auto"
+                >
+                  Start New Patient Screening
+                </Button>
+                <Button
+                  onClick={handleResetDemo}
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<RotateCcw className="w-3.5 h-3.5 text-slate-500" />}
+                  className="w-full sm:w-auto text-xs"
+                >
+                  Load Demo Data
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -228,7 +325,7 @@ export const CasesPage: React.FC<CasesPageProps> = ({
                     <th className="px-4 py-3.5">Screening Priority</th>
                     <th className="px-4 py-3.5">Status</th>
                     <th className="px-4 py-3.5">Reviewer</th>
-                    <th className="px-5 py-3.5 text-right">Details</th>
+                    <th className="px-5 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -300,35 +397,45 @@ export const CasesPage: React.FC<CasesPageProps> = ({
 
                         <td className="px-4 py-4">{getStatusBadge(c.status)}</td>
 
-                      <td className="px-4 py-4 text-xs text-slate-600">
-                        {c.clinician_review ? (
-                          <div>
-                            <span className="font-medium text-slate-900 block">
-                              {c.clinician_review.reviewer_name.split(',')[0]}
-                            </span>
-                            <span className="text-[10px] text-emerald-600 font-semibold">
-                              ✓ Verified
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic">Pending review</span>
-                        )}
-                      </td>
+                        <td className="px-4 py-4 text-xs text-slate-600">
+                          {c.clinician_review ? (
+                            <div>
+                              <span className="font-medium text-slate-900 block">
+                                {c.clinician_review.reviewer_name.split(',')[0]}
+                              </span>
+                              <span className="text-[10px] text-emerald-600 font-semibold">
+                                ✓ Verified
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Pending review</span>
+                          )}
+                        </td>
 
-                      <td className="px-5 py-4 text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          rightIcon={<ChevronRight className="w-4 h-4 text-slate-400" />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectCase(c.case_id);
-                          }}
-                        >
-                          View
-                        </Button>
-                      </td>
-                    </tr>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              rightIcon={<ChevronRight className="w-4 h-4 text-slate-400" />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectCase(c.case_id);
+                              }}
+                            >
+                              View
+                            </Button>
+                            <button
+                              type="button"
+                              title={`Delete case ${c.case_id}`}
+                              onClick={(e) => handleDeleteCase(e, c.case_id, c.patient_name)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>

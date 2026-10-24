@@ -59,3 +59,77 @@
 .animate-scan-line {
   animation: scan-line 2.5s ease-in-out infinite;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   NEW: Bar chart animation — slide in from left
+   ────────────────────────────────────────────────────────────────────────────── */
+@keyframes bar-grow {
+  from { width: 0 !important; }
+  to   { /* inherits inline style width */ }
+}
+
+.animate-bar-grow {
+  animation: bar-grow 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   NEW: Skeleton shimmer loader
+   ────────────────────────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 25%,
+    #e2e8f0 37%,
+    #f1f5f9 63%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   NEW: Page entry fade-up
+   ────────────────────────────────────────────────────────────────────────────── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   NEW: GradCAM teal glow pulse
+   ────────────────────────────────────────────────────────────────────────────── */
+@keyframes glow-teal-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(13, 148, 136, 0);
+  }
+  50% {
+    box-shadow: 0 0 40px 8px rgba(13, 148, 136, 0.12);
+  }
+}
+
+.animate-gradcam-glow {
+  animation: glow-teal-pulse 3s ease-in-out infinite;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   NEW: Landing hero gradient shift
+   ────────────────────────────────────────────────────────────────────────────── */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+

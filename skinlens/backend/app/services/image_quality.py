@@ -21,8 +21,11 @@ import numpy as np
 from PIL import Image, UnidentifiedImageError
 
 
+from .skin_validator import SkinDomainValidator
+
+
 class ImageQualityValidator:
-    """Evaluates uploaded skin lesion images for optical quality heuristics."""
+    """Evaluates uploaded skin lesion images for optical quality heuristics and skin presence."""
 
     ALLOWED_FORMATS = {"JPEG", "JPG", "PNG", "WEBP", "BMP", "TIFF"}
     MIN_WIDTH = 200
@@ -36,12 +39,15 @@ class ImageQualityValidator:
     def validate(
         cls, image_input: Union[bytes, bytearray, Image.Image, str, Path]
     ) -> Dict[str, Any]:
-        """Performs prototype-level quality checks on the provided image input.
+        """Performs prototype-level quality and skin presence checks on the provided image input.
 
         Returns a dictionary with:
-        - valid: bool
+        - valid: bool (must be skin AND meet optical criteria)
+        - is_skin: bool
+        - skin_percentage: float (0.0 to 100.0)
+        - phototype: str
         - quality_score: float (0.0 to 1.0)
-        - checks: dict of bools (format, resolution, blur, brightness, contrast)
+        - checks: dict of bools (format, resolution, blur, brightness, skin_detected)
         - message: descriptive guidance string
         - details: raw measured metrics
         - disclaimer: notice that checks are prototype-level, not clinically validated
@@ -59,12 +65,16 @@ class ImageQualityValidator:
             except (UnidentifiedImageError, OSError):
                 return {
                     "valid": False,
+                    "is_skin": False,
+                    "skin_percentage": 0.0,
+                    "phototype": "Indeterminate",
                     "quality_score": 0.0,
                     "checks": {
                         "resolution": False,
                         "blur": False,
                         "brightness": False,
                         "format": False,
+                        "skin_detected": False,
                     },
                     "message": "The uploaded file could not be decoded as an image. Please upload a valid JPEG, PNG, or WebP photo.",
                     "details": {"format": "INVALID"},
@@ -85,12 +95,16 @@ class ImageQualityValidator:
             except (UnidentifiedImageError, OSError):
                 return {
                     "valid": False,
+                    "is_skin": False,
+                    "skin_percentage": 0.0,
+                    "phototype": "Indeterminate",
                     "quality_score": 0.0,
                     "checks": {
                         "resolution": False,
                         "blur": False,
                         "brightness": False,
                         "format": False,
+                        "skin_detected": False,
                     },
                     "message": "The specified file is not a valid image format.",
                     "details": {"format": "INVALID"},
@@ -105,24 +119,34 @@ class ImageQualityValidator:
         cv_img = np.array(rgb_image)  # RGB uint8 numpy array
         gray = cv2.cvtColor(cv_img, cv2.COLOR_RGB2GRAY)
 
-        # 2. Resolution check
+        # 2. Skin Domain & Tissue Validation Gate
+        skin_result = SkinDomainValidator.validate(cv_img)
+        is_skin = bool(skin_result.get("is_skin", True))
+        skin_pct = float(skin_result.get("skin_percentage", 100.0))
+        phototype = str(skin_result.get("phototype", "Indeterminate"))
+
+        # 3. Resolution check
         resolution_valid = width >= cls.MIN_WIDTH and height >= cls.MIN_HEIGHT
 
-        # 3. Blur check (Laplacian variance)
+        # 4. Blur check (Laplacian variance)
         blur_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
         blur_valid = blur_var >= cls.MIN_BLUR_VAR
 
-        # 4. Brightness check (Mean luminance)
+        # 5. Brightness check (Mean luminance)
         mean_brightness = float(np.mean(gray))
         brightness_valid = cls.MIN_BRIGHTNESS <= mean_brightness <= cls.MAX_BRIGHTNESS
 
-        # 5. Contrast check (Standard deviation of luminance)
+        # 6. Contrast check (Standard deviation of luminance)
         std_contrast = float(np.std(gray))
         contrast_valid = std_contrast >= cls.MIN_CONTRAST
 
-        # Overall validity: must pass format, resolution, blur, and brightness
+        # Overall validity: must pass format, resolution, blur, brightness, AND skin verification
         is_valid = bool(
-            format_valid and resolution_valid and blur_valid and brightness_valid
+            format_valid
+            and resolution_valid
+            and blur_valid
+            and brightness_valid
+            and is_skin
         )
 
         # Calculate composite quality score (0.0 to 1.0)
@@ -139,16 +163,22 @@ class ImageQualityValidator:
         # Sharpness factor
         sharp_factor = min(1.0, max(0.1, blur_var / 25.0)) if blur_var >= cls.MIN_BLUR_VAR else 0.1
 
+        # Skin factor (heavily penalize non-skin images in overall quality score)
+        skin_factor = min(1.0, max(0.05, skin_pct / 80.0)) if is_skin else 0.05
+
         composite_score = (
-            (res_factor * 0.30)
-            + (bright_factor * 0.30)
-            + (contrast_factor * 0.20)
+            (res_factor * 0.20)
+            + (bright_factor * 0.20)
+            + (contrast_factor * 0.15)
             + (sharp_factor * 0.20)
+            + (skin_factor * 0.25)
         )
         quality_score = round(float(np.clip(composite_score, 0.05, 0.99)), 2)
 
         # Build user-friendly message
         issues = []
+        if not is_skin:
+            issues.extend(skin_result.get("issues", ["Non-skin image detected"]))
         if not format_valid:
             issues.append(f"unsupported format ({img_format})")
         if not resolution_valid:
@@ -164,22 +194,31 @@ class ImageQualityValidator:
             issues.append("insufficient contrast / washed out")
 
         if is_valid:
-            message = "Image quality meets basic prototype requirements for screening."
-        else:
-            issues_str = ", ".join(issues)
             message = (
-                f"The image is unsuitable for reliable evaluation ({issues_str}). "
-                "Please upload a clearer image that is in focus, well-lit, and centered on the lesion."
+                f"Image validated: Human skin tissue confirmed ({skin_pct}% coverage, {phototype}). "
+                "Optical quality meets screening requirements."
             )
+        else:
+            issues_str = "; ".join(issues)
+            recommendation_txt = (
+                skin_result.get("recommendations", ["Please upload a clearer image centered on the lesion."])[0]
+                if not is_skin
+                else "Please upload a clearer image that is in focus, well-lit, and centered on the lesion."
+            )
+            message = f"The image is unsuitable for reliable evaluation ({issues_str}). {recommendation_txt}"
 
         return {
             "valid": is_valid,
+            "is_skin": is_skin,
+            "skin_percentage": skin_pct,
+            "phototype": phototype,
             "quality_score": quality_score,
             "checks": {
                 "resolution": resolution_valid,
                 "blur": blur_valid,
                 "brightness": brightness_valid,
                 "format": format_valid,
+                "skin_detected": is_skin,
             },
             "message": message,
             "details": {
@@ -188,9 +227,12 @@ class ImageQualityValidator:
                 "blur_variance": round(blur_var, 2),
                 "brightness_mean": round(mean_brightness, 1),
                 "contrast_std": round(std_contrast, 1),
+                "skin_percentage": skin_pct,
+                "phototype": phototype,
             },
             "disclaimer": "This automated quality check is a prototype-level heuristic and is NOT clinically validated.",
         }
+
 
 
 def validate_image_quality(

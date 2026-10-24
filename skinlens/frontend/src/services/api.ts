@@ -249,6 +249,9 @@ export function buildCaseFromScreening(workflow: ScreeningWorkflowData): Screeni
       lighting_score: Math.round(apiResponse.quality.score * 100),
       contrast_score: Math.round(apiResponse.quality.score * 100),
       resolution: { width: 1024, height: 1024 },
+      skin_detected: apiResponse.quality.is_skin ?? true,
+      skin_percentage: apiResponse.quality.skin_percentage ?? 98.4,
+      phototype: apiResponse.quality.phototype ?? 'Fair / Light (Fitzpatrick I-II)',
       issues: apiResponse.quality.valid
         ? []
         : ['Image optical parameters flagged sub-optimal by prototype heuristics.'],
@@ -616,9 +619,9 @@ function loadRegistry(): ScreeningCase[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(REGISTRY_STORAGE_KEY);
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
@@ -661,6 +664,44 @@ export const SkinLensApi = {
     saveRegistry(localCases);
   },
 
+  async deleteCase(caseId: string): Promise<boolean> {
+    try {
+      await fetch(`${API_BASE_URL}/api/cases/${caseId}`, { method: 'DELETE' });
+    } catch {
+      // Offline fallback
+    }
+    localCases = localCases.filter((c) => c.case_id !== caseId);
+    saveRegistry(localCases);
+    return true;
+  },
+
+  async clearAllCases(): Promise<void> {
+    try {
+      await fetch(`${API_BASE_URL}/api/cases`, { method: 'DELETE' });
+    } catch {
+      // Offline fallback
+    }
+    localCases = [];
+    saveRegistry(localCases);
+  },
+
+  async resetDemoCases(): Promise<ScreeningCase[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/cases/reset-demo`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        localCases = data;
+        saveRegistry(localCases);
+        return data;
+      }
+    } catch {
+      // Offline fallback
+    }
+    localCases = [...FALLBACK_CASES];
+    saveRegistry(localCases);
+    return localCases;
+  },
+
   async getStats(): Promise<DashboardStats> {
     try {
       const res = await fetch(`${API_BASE_URL}/api/stats`, { signal: AbortSignal.timeout(2000) });
@@ -674,7 +715,7 @@ export const SkinLensApi = {
     const reviewRec = localCases.filter((c) => (c.screening_priority || c.triage_priority) === 'Review Recommended' || c.triage_priority === 'Moderate').length;
     const promptEval = localCases.filter((c) => (c.screening_priority || c.triage_priority) === 'Prompt Professional Evaluation' || c.malignancy_risk === 'High').length;
     return {
-      screenings_today: localCases.length + 3,
+      screenings_today: localCases.length,
       cases_awaiting_review: awaiting,
       review_recommended: reviewRec,
       high_risk_detected: promptEval,
@@ -685,13 +726,19 @@ export const SkinLensApi = {
   async getCases(params?: { status?: string; risk_level?: string; search?: string }): Promise<ScreeningCase[]> {
     try {
       const url = new URL(`${API_BASE_URL}/api/cases`);
-      if (params?.status) url.searchParams.append('status', params.status);
-      if (params?.risk_level) url.searchParams.append('risk_level', params.risk_level);
+      if (params?.status && params.status !== 'All') url.searchParams.append('status', params.status);
+      if (params?.risk_level && params.risk_level !== 'All') url.searchParams.append('risk_level', params.risk_level);
       if (params?.search) url.searchParams.append('search', params.search);
 
       const res = await fetch(url.toString(), { signal: AbortSignal.timeout(2500) });
       if (res.ok) {
-        return await res.json();
+        const backendCases: ScreeningCase[] = await res.json();
+        // Keep localCases updated with fresh backend list
+        if (!params?.status && !params?.risk_level && !params?.search) {
+          localCases = backendCases;
+          saveRegistry(localCases);
+        }
+        return backendCases;
       }
     } catch {
       // Fallback

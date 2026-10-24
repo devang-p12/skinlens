@@ -3,6 +3,7 @@ from PIL import Image
 import cv2
 
 from ..models.schemas import ImageQualityResult, ImageResolution
+from .skin_validator import SkinDomainValidator
 from ..utils.image_processing import (
     bytes_to_cv2,
     calculate_sharpness,
@@ -13,7 +14,8 @@ class ImageQualityService:
     @staticmethod
     def assess_quality(image_bytes: bytes) -> ImageQualityResult:
         """
-        Analyzes uploaded dermoscopy/clinical skin image for optical quality:
+        Analyzes uploaded dermoscopy/clinical skin image for optical quality and skin presence:
+        - Human skin tissue validation (pre-classification domain gate)
         - Sharpness (blur detection)
         - Illumination balance & glare
         - Contrast distribution
@@ -22,6 +24,12 @@ class ImageQualityService:
         cv_img = bytes_to_cv2(image_bytes)
         height, width = cv_img.shape[:2]
         
+        # 1. Skin Domain Validation Gate
+        skin_val = SkinDomainValidator.validate(cv_img)
+        is_skin = bool(skin_val.get("is_skin", True))
+        skin_percentage = float(skin_val.get("skin_percentage", 100.0))
+        phototype = str(skin_val.get("phototype", "Indeterminate"))
+        
         sharpness_score, raw_var = calculate_sharpness(cv_img)
         lc = calculate_lighting_and_contrast(cv_img)
         lighting_score = lc["lighting_score"]
@@ -29,6 +37,11 @@ class ImageQualityService:
         
         issues = []
         recommendations = []
+        
+        # Non-skin rejection
+        if not is_skin:
+            issues.extend(skin_val.get("issues", ["Non-skin image detected"]))
+            recommendations.extend(skin_val.get("recommendations", ["Please upload an image of human skin."]))
         
         # Blur check
         if sharpness_score < 35.0:
@@ -52,9 +65,13 @@ class ImageQualityService:
             recommendations.append("Upload image of at least 500x500 pixels for micro-pattern AI segmentation.")
             
         # Overall quality score
-        composite_score = (sharpness_score * 0.45) + (lighting_score * 0.35) + (contrast_score * 0.20)
+        composite_score = (sharpness_score * 0.40) + (lighting_score * 0.30) + (contrast_score * 0.15) + ((skin_percentage / 100.0) * 15.0 if is_skin else 0.0)
         
-        if composite_score >= 75.0 and len(issues) == 0:
+        if not is_skin:
+            rating = "Unacceptable"
+            is_acceptable = False
+            issues.insert(0, f"Non-skin image detected ({skin_percentage}% skin coverage).")
+        elif composite_score >= 75.0 and len(issues) == 0:
             rating = "Optimal"
             is_acceptable = True
         elif composite_score >= 50.0 and len(issues) <= 1:
@@ -71,7 +88,7 @@ class ImageQualityService:
             recommendations.insert(0, "Please capture a new higher-fidelity image.")
 
         if not recommendations:
-            recommendations.append("Image quality meets dermatological AI screening standards.")
+            recommendations.append(f"Image quality meets dermatological AI screening standards ({skin_percentage}% skin verified, {phototype}).")
 
         return ImageQualityResult(
             is_acceptable=is_acceptable,
@@ -80,6 +97,10 @@ class ImageQualityService:
             lighting_score=lighting_score,
             contrast_score=contrast_score,
             resolution=ImageResolution(width=width, height=height),
+            skin_detected=is_skin,
+            skin_percentage=skin_percentage,
+            phototype=phototype,
             issues=issues,
             recommendations=recommendations,
         )
+
